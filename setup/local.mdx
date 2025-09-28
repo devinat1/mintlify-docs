@@ -1,0 +1,541 @@
+---
+title: "Local Development Setup"
+description: "Setting up LiteAgent for local development and testing"
+---
+
+## Overview
+
+Local development setup gives you more control and faster iteration when developing with LiteAgent. This guide covers setting up a complete development environment on your local machine.
+
+## Prerequisites
+
+Before starting, ensure you have:
+- Python 3.11 installed
+- Git configured
+- At least 8GB RAM available
+- 20GB free disk space
+
+## Step-by-Step Setup
+
+<Steps>
+
+<Step title="Clone Repository">
+```bash
+# Clone the main repository
+git clone https://github.com/devinat1/agent-collector.git
+cd agent-collector
+
+# Initialize submodules (important!)
+git submodule update --init --recursive
+```
+
+<Warning>
+The `--recursive` flag is crucial as LiteAgent includes several agent implementations as submodules.
+</Warning>
+</Step>
+
+<Step title="Create Python Environment">
+<Tabs>
+
+<Tab title="Using Conda (Recommended)">
+```bash
+# Install Miniconda if not already installed
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh
+
+# Create environment with Python 3.11
+conda create -n liteagent python=3.11
+conda activate liteagent
+
+# Verify Python version
+python --version  # Should show Python 3.11.x
+```
+</Tab>
+
+<Tab title="Using venv">
+```bash
+# Create virtual environment
+python3.11 -m venv venv
+
+# Activate environment
+source venv/bin/activate  # Linux/macOS
+# venv\Scripts\activate     # Windows
+
+# Upgrade pip
+pip install --upgrade pip
+```
+</Tab>
+
+<Tab title="Using pyenv">
+```bash
+# Install pyenv if not already installed
+curl https://pyenv.run | bash
+
+# Install Python 3.11
+pyenv install 3.11.9
+pyenv local 3.11.9
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate
+```
+</Tab>
+
+</Tabs>
+</Step>
+
+<Step title="Install Dependencies">
+```bash
+# Install main requirements
+pip install -r requirements.txt
+
+# Install Playwright and browsers
+pip install playwright
+playwright install
+playwright install-deps  # System dependencies
+
+# Install development tools (optional)
+pip install -r requirements-dev.txt
+```
+</Step>
+
+<Step title="Configure Environment Variables">
+```bash
+# Copy example environment file
+cp collector/.env.example collector/.env
+
+# Edit with your API keys
+nano collector/.env  # or use your preferred editor
+```
+</Step>
+
+</Steps>
+
+## Environment Variables Configuration
+
+### Required API Keys
+
+Edit `collector/.env` with your API keys:
+
+```env
+# OpenAI (for BrowserUse, WebArena, VisualWebArena)
+OPENAI_API_KEY=sk-...
+
+# Anthropic (for Agent E)
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Google (for Gemini models)
+GOOGLE_API_KEY=...
+GEMINI_API_KEY=...
+
+# Agent-specific keys (as needed)
+MULTION_API_KEY=...
+DOBROWSER_API_KEY=...
+SKYVERN_API_KEY=...
+```
+
+### Optional Configuration
+
+```env
+# Logging level
+LOG_LEVEL=INFO
+
+# Default timeout (seconds)
+DEFAULT_TIMEOUT=180
+
+# Browser settings
+HEADLESS=true
+BROWSER_ARGS=--no-sandbox,--disable-dev-shm-usage
+
+# Data directories
+DATA_DIR=./data
+OUTPUT_DIR=./data/db
+PROMPT_DIR=./data/prompts
+```
+
+## Verify Installation
+
+Run the verification script to ensure everything is working:
+
+```bash
+# Make run script executable
+chmod +x run.sh
+
+# Test basic functionality
+python -c "
+import sys
+print(f'Python version: {sys.version}')
+
+try:
+    import playwright
+    print('✓ Playwright installed')
+except ImportError:
+    print('✗ Playwright not found')
+
+try:
+    import sqlite3
+    print('✓ SQLite available')
+except ImportError:
+    print('✗ SQLite not found')
+
+print('Setup verification complete!')
+"
+```
+
+## Agent-Specific Setup
+
+Some agents require additional setup steps:
+
+### BrowserUse Agent
+
+```bash
+# Install BrowserUse dependencies
+pip install browser-use
+
+# Verify installation
+python -c "import browser_use; print('BrowserUse ready')"
+```
+
+### DoBrowser Agent
+
+DoBrowser requires browser profile setup:
+
+```bash
+# Create browser data directories
+mkdir -p data/browser_data/dobrowser
+mkdir -p data/browser_data/browseruse
+
+# Launch Chrome with custom profile (do this manually)
+google-chrome --user-data-dir=$(pwd)/data/browser_data/dobrowser
+
+# Install DoBrowser extension and log in
+# Then close Chrome to save the profile
+```
+
+### Skyvern Agent
+
+Skyvern requires additional webhook setup:
+
+```bash
+# Install Skyvern dependencies
+pip install skyvern
+
+# Set up webhook server (if needed)
+export SKYVERN_WEBHOOK_URL=http://localhost:8080
+
+# Verify Skyvern setup
+python -c "import skyvern; print('Skyvern ready')"
+```
+
+### Agent E
+
+Agent E works with the standard Anthropic setup:
+
+```bash
+# Verify Anthropic API key
+python -c "
+import os
+if 'ANTHROPIC_API_KEY' in os.environ:
+    print('✓ Anthropic API key configured')
+else:
+    print('✗ Set ANTHROPIC_API_KEY in .env file')
+"
+```
+
+## Directory Structure
+
+After setup, your directory should look like:
+
+```
+agent-collector/
+├── collector/                 # Main application code
+│   ├── main.py               # Entry point
+│   ├── web_automation_*.py   # Agent implementations
+│   ├── utils/                # Utility modules
+│   └── .env                  # Your API keys
+├── data/
+│   ├── prompts/              # Test prompts
+│   ├── db/                   # Output databases
+│   └── browser_data/         # Browser profiles
+├── evaluation/               # Evaluation scripts
+├── sites/                    # TrickyArena test sites
+├── requirements.txt          # Python dependencies
+└── run.sh                    # Main runner script
+```
+
+## Running Your First Test
+
+<Steps>
+
+<Step title="Create Test Prompts">
+```bash
+# Create a test prompt directory
+mkdir -p data/prompts/local_test
+
+# Create a simple test file
+cat > data/prompts/local_test/simple.txt << EOF
+https://example.com
+Navigate to the homepage and find the "More information" link
+EOF
+```
+</Step>
+
+<Step title="Run BrowserUse Agent">
+```bash
+# Run with the CLI
+./run.sh browseruse
+
+# When prompted, select "local_test" category
+# The script will run the test and save results
+```
+</Step>
+
+<Step title="Check Results">
+```bash
+# View output directory
+ls -la data/db/browseruse/local_test/
+
+# Check the SQLite database
+sqlite3 data/db/browseruse/local_test/simple_1/simple.db
+sqlite> .tables
+sqlite> SELECT * FROM actions LIMIT 5;
+sqlite> .exit
+```
+</Step>
+
+</Steps>
+
+## Development Workflow
+
+### Running Individual Agents
+
+```bash
+# Run specific agent with category
+./run.sh browseruse --category my_tests
+
+# Run with custom timeout
+./run.sh agente --timeout 300
+
+# Run with verbose logging
+./run.sh multion --verbose
+
+# Run single prompt file
+python main.py browseruse \
+  --site "https://example.com" \
+  --task "Click the first link" \
+  --timeout 120
+```
+
+### Development Commands
+
+```bash
+# Run tests
+python -m pytest tests/
+
+# Type checking
+mypy collector/
+
+# Code formatting
+black collector/
+isort collector/
+
+# Linting
+flake8 collector/
+```
+
+### Debugging
+
+Enable debug logging:
+
+```bash
+# Set debug level
+export LOG_LEVEL=DEBUG
+
+# Run with verbose output
+./run.sh browseruse --verbose
+
+# Check logs
+tail -f collector/logs/liteagent.log
+```
+
+## IDE Configuration
+
+### VS Code Setup
+
+Create `.vscode/settings.json`:
+
+```json
+{
+  "python.defaultInterpreterPath": "./venv/bin/python",
+  "python.linting.enabled": true,
+  "python.linting.flake8Enabled": true,
+  "python.formatting.provider": "black",
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestArgs": ["tests"],
+  "editor.formatOnSave": true,
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    ".pytest_cache": true
+  }
+}
+```
+
+### PyCharm Setup
+
+1. Open project in PyCharm
+2. Set Python interpreter to your virtual environment
+3. Configure code style to use Black formatter
+4. Set up run configurations for different agents
+
+## Performance Optimization
+
+### Local Development
+
+```bash
+# Use SSD for data directory
+export DATA_DIR=/path/to/ssd/liteagent-data
+
+# Increase browser memory
+export BROWSER_MEMORY=2048
+
+# Use local model cache
+export HF_HOME=~/.cache/huggingface
+```
+
+### Parallel Testing
+
+```bash
+# Run multiple agents in parallel
+./run.sh browseruse --category test1 &
+./run.sh agente --category test2 &
+./run.sh multion --category test3 &
+
+# Wait for all to complete
+wait
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+
+<Accordion title="Import errors">
+```bash
+# Ensure virtual environment is activated
+source venv/bin/activate
+
+# Reinstall requirements
+pip install -r requirements.txt --force-reinstall
+
+# Check Python path
+python -c "import sys; print('\n'.join(sys.path))"
+```
+</Accordion>
+
+<Accordion title="Browser automation fails">
+```bash
+# Reinstall Playwright browsers
+playwright install --force
+
+# Check browser installation
+playwright install-deps
+
+# Test browser launch
+python -c "
+from playwright.sync_api import sync_playwright
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    print('Browser launched successfully')
+    browser.close()
+"
+```
+</Accordion>
+
+<Accordion title="Permission errors">
+```bash
+# Fix file permissions
+chmod +x run.sh
+chmod -R 755 collector/
+
+# Check write permissions
+touch data/test_write && rm data/test_write
+```
+</Accordion>
+
+<Accordion title="Out of memory">
+```bash
+# Monitor memory usage
+top -p $(pgrep -f python)
+
+# Reduce parallel processes
+export MAX_WORKERS=2
+
+# Clear browser cache
+rm -rf data/browser_data/*/Default/Application\ Cache/*
+```
+</Accordion>
+
+</AccordionGroup>
+
+## Advanced Configuration
+
+### Custom Agent Development
+
+To develop a custom agent:
+
+```python
+# collector/web_automation_custom.py
+from collector.web_automation_base import WebAutomationBase
+
+class CustomWebAutomation(WebAutomationBase):
+    async def run_task(self):
+        # Implement your agent logic
+        await self.page.goto(self.site)
+
+        # Record actions
+        self.record_action("navigate", url=self.site)
+
+        # Your automation logic here
+        pass
+```
+
+Register in factory:
+
+```python
+# collector/web_automation_factory.py
+elif agent_method == "custom":
+    return CustomWebAutomation(...)
+```
+
+### Environment-Specific Configs
+
+Create environment-specific configuration:
+
+```python
+# collector/config/local.py
+BROWSER_ARGS = [
+    "--disable-web-security",
+    "--disable-extensions",
+    "--no-sandbox"
+]
+
+TIMEOUT_SETTINGS = {
+    "page_load": 30,
+    "element_wait": 10,
+    "action_delay": 1
+}
+```
+
+## Next Steps
+
+<Card title="Environment Variables" icon="key" href="/setup/environment">
+  Complete environment configuration guide
+</Card>
+
+<Card title="Running Tests" icon="play" href="/usage/cli">
+  Learn to run tests and create prompts
+</Card>
+
+<Card title="Agent Configuration" icon="robot" href="/agents/overview">
+  Configure individual agents
+</Card>

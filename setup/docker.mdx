@@ -1,0 +1,619 @@
+---
+title: "Docker Setup"
+description: "Complete guide to running LiteAgent with Docker and Docker Compose"
+---
+
+## Overview
+
+Docker is the recommended way to run LiteAgent as it provides:
+- Isolated environments for each agent
+- Consistent dependencies across platforms
+- Easy parallel execution
+- Simple deployment and scaling
+
+## Docker Architecture
+
+```mermaid
+graph TB
+    subgraph "Host System"
+        DC[Docker Compose]
+        V[Volumes]
+        N[Networks]
+    end
+
+    subgraph "Agent Containers"
+        A1[BrowserUse]
+        A2[DoBrowser]
+        A3[MultiOn]
+        A4[Agent E]
+        A5[Skyvern]
+    end
+
+    DC --> A1
+    DC --> A2
+    DC --> A3
+    DC --> A4
+    DC --> A5
+
+    A1 --> V
+    A2 --> V
+    A3 --> V
+    A4 --> V
+    A5 --> V
+```
+
+## Quick Start
+
+<Steps>
+
+<Step title="Clone Repository">
+```bash
+git clone https://github.com/devinat1/agent-collector.git
+cd agent-collector
+git submodule update --init --recursive
+```
+</Step>
+
+<Step title="Configure Environment">
+```bash
+cp collector/.env.example collector/.env
+# Edit collector/.env with your API keys
+```
+</Step>
+
+<Step title="Build and Run">
+```bash
+# Build all images
+docker compose build
+
+# Run specific agent
+docker compose up browseruse
+
+# Run in background
+docker compose up -d browseruse
+```
+</Step>
+
+</Steps>
+
+## Docker Compose Configuration
+
+### Main Configuration File
+
+The `docker-compose.yml` file defines all agent services:
+
+```yaml
+services:
+  browseruse:
+    build:
+      context: .
+      dockerfile: Dockerfile.browseruse
+    image: browseruse-runner
+    volumes:
+      - ./data/db:/app/data/db
+      - ./data/prompts:/app/data/prompts
+      - ./collector/logs:/app/collector/logs
+    working_dir: /app
+    command: ["bash", "-c", "./run.sh browseruse --category test --virtual --timeout 180"]
+    env_file:
+      - collector/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+```
+
+### Agent Services
+
+<Tabs>
+
+<Tab title="BrowserUse">
+```yaml
+browseruse:
+  build:
+    context: .
+    dockerfile: Dockerfile.browseruse
+  image: browseruse-runner
+  volumes:
+    - ./data/db:/app/data/db
+    - ./data/prompts:/app/data/prompts
+    - ./collector/logs:/app/collector/logs
+  working_dir: /app
+  command: ["bash", "-c", "./run.sh browseruse --category test --timeout 180"]
+  env_file:
+    - collector/.env
+  environment:
+    - PYTHONUNBUFFERED=1
+    - OPENAI_API_KEY=${OPENAI_API_KEY}
+```
+</Tab>
+
+<Tab title="Agent E">
+```yaml
+agente:
+  build:
+    context: .
+    dockerfile: Dockerfile.agente
+  image: agente-runner
+  volumes:
+    - ./data/db:/app/data/db
+    - ./data/prompts:/app/data/prompts
+    - ./collector/logs:/app/collector/logs
+  working_dir: /app
+  command: ["bash", "-c", "./run.sh agente --category test --timeout 300"]
+  env_file:
+    - collector/.env
+  environment:
+    - PYTHONUNBUFFERED=1
+    - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+```
+</Tab>
+
+<Tab title="Skyvern">
+```yaml
+skyvern:
+  build:
+    context: .
+    dockerfile: Dockerfile.skyvern
+  image: skyvern-runner
+  expose:
+    - 5432
+  volumes:
+    - ./data/db:/app/data/db
+    - ./data/prompts:/app/data/prompts
+    - ./collector/logs:/app/collector/logs
+  working_dir: /app
+  command: ["bash", "-c", "./collector/agents/skyvern/entrypoint.sh ../../../run.sh skyvern --category test"]
+  environment:
+    - PYTHONUNBUFFERED=1
+    - SKYVERN_API_KEY=${SKYVERN_API_KEY}
+```
+</Tab>
+
+</Tabs>
+
+## Dockerfile Examples
+
+### Base Dockerfile Structure
+
+```dockerfile
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    unzip \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Chrome
+RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Playwright
+RUN pip install playwright
+RUN playwright install chromium
+RUN playwright install-deps
+
+# Copy application code
+COPY . .
+
+# Set execute permissions
+RUN chmod +x run.sh
+
+# Create data directories
+RUN mkdir -p data/db data/prompts collector/logs
+
+ENTRYPOINT ["./run.sh"]
+```
+
+### Agent-Specific Dockerfiles
+
+<AccordionGroup>
+
+<Accordion title="Dockerfile.browseruse">
+```dockerfile
+FROM python:3.11-slim
+
+# Install Chrome and dependencies
+RUN apt-get update && apt-get install -y \
+    wget gnupg unzip curl git \
+    chromium-browser chromium-chromedriver \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy and install requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install BrowserUse specific dependencies
+RUN pip install browser-use playwright
+RUN playwright install chromium
+RUN playwright install-deps
+
+# Copy application
+COPY . .
+RUN chmod +x run.sh
+
+# Create directories
+RUN mkdir -p data/db data/prompts collector/logs
+
+ENTRYPOINT ["./run.sh"]
+```
+</Accordion>
+
+<Accordion title="Dockerfile.skyvern">
+```dockerfile
+FROM python:3.11-slim
+
+# Install PostgreSQL client and other dependencies
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    wget gnupg unzip curl git \
+    chromium-browser \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Skyvern dependencies
+RUN pip install skyvern playwright
+RUN playwright install chromium
+RUN playwright install-deps
+
+# Copy application
+COPY . .
+RUN chmod +x run.sh
+RUN chmod +x collector/agents/skyvern/entrypoint.sh
+
+# Create directories
+RUN mkdir -p data/db data/prompts collector/logs
+
+ENTRYPOINT ["./collector/agents/skyvern/entrypoint.sh"]
+```
+</Accordion>
+
+</AccordionGroup>
+
+## Volume Management
+
+### Persistent Data
+
+LiteAgent uses volumes to persist data across container restarts:
+
+```yaml
+volumes:
+  # Test data output
+  - ./data/db:/app/data/db
+
+  # Test prompts input
+  - ./data/prompts:/app/data/prompts
+
+  # Application logs
+  - ./collector/logs:/app/collector/logs
+
+  # Browser profiles (for DoBrowser)
+  - ./data/browser_data:/app/data/browser_data
+```
+
+### Browser Data Persistence
+
+For agents that require browser profiles:
+
+```yaml
+dobrowser:
+  volumes:
+    - ./data/browser_data/dobrowser:/app/data/browser_data/dobrowser
+    - ./data/browser_data/browseruse:/app/data/browser_data/browseruse
+```
+
+## Parallel Execution
+
+### Using Docker Compose Replicas
+
+```yaml
+services:
+  browseruse:
+    # ... configuration ...
+    deploy:
+      replicas: 5  # Run 5 parallel instances
+    environment:
+      - WORKER_ID=${WORKER_ID:-1}
+```
+
+Run with scaling:
+```bash
+# Scale to 5 instances
+docker compose up --scale browseruse=5
+
+# Or using deploy.replicas
+docker compose up -d browseruse
+```
+
+### Multiple Agent Types
+
+```bash
+# Run multiple different agents
+docker compose up -d browseruse agente multion
+
+# Scale specific agents
+docker compose up --scale browseruse=3 --scale agente=2
+```
+
+## Environment Configuration
+
+### Environment Files
+
+Create separate environment files for different configurations:
+
+```bash
+# Development
+collector/.env.dev
+
+# Production
+collector/.env.prod
+
+# Testing
+collector/.env.test
+```
+
+Use with Docker Compose:
+```yaml
+services:
+  browseruse:
+    env_file:
+      - collector/.env
+      - collector/.env.${ENV:-dev}
+```
+
+### Runtime Environment Variables
+
+Override environment variables at runtime:
+
+```bash
+# Override category
+CATEGORY=dark_patterns docker compose up browseruse
+
+# Override timeout
+TIMEOUT=600 docker compose up agente
+
+# Multiple overrides
+CATEGORY=benchmark TIMEOUT=300 REPLICAS=3 docker compose up browseruse
+```
+
+## Networking
+
+### Internal Communication
+
+Services can communicate using service names:
+
+```yaml
+services:
+  skyvern:
+    depends_on:
+      - postgres
+    environment:
+      - DATABASE_URL=postgresql://user:pass@postgres:5432/skyvern
+
+  postgres:
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=skyvern
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+```
+
+### Port Exposure
+
+Expose services for external access:
+
+```yaml
+services:
+  webhook-server:
+    ports:
+      - "8080:8080"  # External:Internal
+    environment:
+      - WEBHOOK_PORT=8080
+```
+
+## Monitoring and Logging
+
+### Log Configuration
+
+Configure logging for better debugging:
+
+```yaml
+services:
+  browseruse:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+```
+
+### Health Checks
+
+Add health checks to monitor container status:
+
+```yaml
+services:
+  browseruse:
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+```
+
+### Monitoring Commands
+
+```bash
+# View logs
+docker compose logs -f browseruse
+
+# Monitor resource usage
+docker stats
+
+# Check container status
+docker compose ps
+
+# View specific service logs
+docker compose logs --tail=100 browseruse
+```
+
+## Optimization
+
+### Build Optimization
+
+Use multi-stage builds to reduce image size:
+
+```dockerfile
+# Build stage
+FROM python:3.11-slim as builder
+COPY requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+# Runtime stage
+FROM python:3.11-slim
+COPY --from=builder /root/.local /root/.local
+ENV PATH=/root/.local/bin:$PATH
+
+# Copy application
+COPY . /app
+WORKDIR /app
+```
+
+### Resource Limits
+
+Set resource limits to prevent container overconsumption:
+
+```yaml
+services:
+  browseruse:
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+```
+
+### Caching
+
+Use Docker layer caching for faster builds:
+
+```bash
+# Enable BuildKit
+export DOCKER_BUILDKIT=1
+
+# Build with cache
+docker compose build --parallel
+
+# Use build cache from registry
+docker compose build --cache-from browseruse-runner:latest
+```
+
+## Production Deployment
+
+### Production Compose File
+
+Create `docker-compose.prod.yml`:
+
+```yaml
+version: '3.8'
+
+services:
+  browseruse:
+    image: liteagent/browseruse:latest
+    restart: unless-stopped
+    deploy:
+      replicas: 10
+      resources:
+        limits:
+          memory: 4G
+    environment:
+      - ENV=production
+    volumes:
+      - /data/liteagent/db:/app/data/db
+      - /data/liteagent/logs:/app/collector/logs
+```
+
+Deploy with:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+
+<Accordion title="Build failures">
+```bash
+# Clear build cache
+docker builder prune -a
+
+# Rebuild without cache
+docker compose build --no-cache
+
+# Check build logs
+docker compose build 2>&1 | tee build.log
+```
+</Accordion>
+
+<Accordion title="Permission issues">
+```bash
+# Fix file permissions
+sudo chown -R $USER:$USER data/
+
+# Add user to docker group
+sudo usermod -aG docker $USER
+newgrp docker
+```
+</Accordion>
+
+<Accordion title="Out of space">
+```bash
+# Clean up unused resources
+docker system prune -a
+
+# Remove old volumes
+docker volume prune
+
+# Check disk usage
+docker system df
+```
+</Accordion>
+
+</AccordionGroup>
+
+## Next Steps
+
+<Card title="Local Setup" icon="laptop" href="/setup/local">
+  Alternative local development setup
+</Card>
+
+<Card title="Environment Variables" icon="key" href="/setup/environment">
+  Configure API keys and settings
+</Card>
+
+<Card title="Running Tests" icon="play" href="/usage/cli">
+  Start running tests with Docker
+</Card>

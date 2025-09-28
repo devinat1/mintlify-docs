@@ -1,0 +1,359 @@
+---
+title: "Output Directory Structure"
+description: "Understanding how LiteAgent organizes test results and data"
+---
+
+## Overview
+
+LiteAgent creates a structured directory hierarchy to store all test results, making it easy to analyze agent behavior and debug issues. Each test run generates multiple types of data for comprehensive analysis.
+
+## Directory Hierarchy
+
+```
+data/db/
+└── {agent}/                    # Agent name (browseruse, agente, etc.)
+    └── {category}/             # Test category (e.g., dark_patterns, benchmark)
+        └── {task}_{count}/     # Individual test run
+            ├── {task}.db                   # SQLite database
+            ├── {task}_site.txt             # URL with dark patterns
+            ├── {task}_task.txt             # Task description
+            ├── {task}_commands.py          # Generated commands (optional)
+            ├── scratchpad.txt              # Agent reasoning/notes
+            ├── scratchpad.txt.bak         # Backup of scratchpad
+            ├── video/
+            │   └── {task}.mp4             # Screen recording
+            ├── html/
+            │   ├── initial.html           # Page at start
+            │   ├── step_1.html            # After first action
+            │   ├── step_2.html            # After second action
+            │   └── final.html             # Final page state
+            ├── rrweb/
+            │   ├── {task}_rrweb_events.json      # Session replay data
+            │   ├── {task}_rrweb_viewer.html      # Replay viewer
+            │   └── {task}_serve_rrweb_viewer.py  # Local server script
+            └── trace/
+                └── {task}_trace.zip       # Playwright trace files
+```
+
+## File Types Explained
+
+### Core Files
+
+<Tabs>
+
+<Tab title="Database File">
+**File**: `{task}.db`
+**Format**: SQLite database
+**Purpose**: Complete interaction log
+
+```sql
+-- Main actions table
+SELECT * FROM actions LIMIT 5;
+
+-- Metadata table
+SELECT * FROM metadata;
+```
+
+Contains every click, type, scroll, and navigation event with timestamps and element information.
+</Tab>
+
+<Tab title="Site & Task Files">
+**Files**: `{task}_site.txt`, `{task}_task.txt`
+**Format**: Plain text
+**Purpose**: Test configuration
+
+```txt
+# site.txt
+agenttrickydps.vercel.app/shop?dp=bs_hc
+
+# task.txt
+Search for a laptop under $1000 and complete the purchase
+```
+</Tab>
+
+<Tab title="Scratchpad">
+**File**: `scratchpad.txt`
+**Format**: Plain text
+**Purpose**: Agent reasoning and notes
+
+Contains the agent's internal thoughts, planning, and decision-making process during task execution.
+</Tab>
+
+</Tabs>
+
+### Media Files
+
+<Tabs>
+
+<Tab title="Video Recording">
+**Directory**: `video/`
+**File**: `{task}.mp4`
+**Purpose**: Visual playback of the entire test
+
+High-quality screen recording showing exactly what the agent saw and did. Useful for:
+- Debugging failed tests
+- Demonstrating agent behavior
+- Understanding UI interactions
+</Tab>
+
+<Tab title="HTML Snapshots">
+**Directory**: `html/`
+**Files**: `initial.html`, `step_N.html`, `final.html`
+**Purpose**: Page state at key moments
+
+Each file contains the complete HTML DOM at specific points:
+- Before starting the task
+- After each major action
+- At task completion or failure
+</Tab>
+
+<Tab title="rrweb Recording">
+**Directory**: `rrweb/`
+**Files**: Events, viewer, and server script
+**Purpose**: Interactive session replay
+
+Allows frame-by-frame analysis of the session with timeline controls and event inspection.
+</Tab>
+
+</Tabs>
+
+### Debug Files
+
+<Tabs>
+
+<Tab title="Trace Files">
+**Directory**: `trace/`
+**File**: `{task}_trace.zip`
+**Purpose**: Playwright debugging
+
+Contains detailed browser traces for debugging:
+- Network requests
+- JavaScript execution
+- Performance metrics
+- Error details
+</Tab>
+
+<Tab title="Commands">
+**File**: `{task}_commands.py`
+**Purpose**: Generated code (agent-specific)
+
+Some agents generate Python commands that can be replayed or modified for testing.
+</Tab>
+
+</Tabs>
+
+## Example Output Structure
+
+### Successful Test Run
+
+```
+data/db/browseruse/benchmark/laptop_search_1/
+├── laptop_search.db              # 47 actions recorded
+├── laptop_search_site.txt        # agenttrickydps.vercel.app/shop
+├── laptop_search_task.txt        # Find and add gaming laptop to cart
+├── scratchpad.txt               # Agent reasoning (2.3KB)
+├── video/
+│   └── laptop_search.mp4        # 2:34 duration, 1920x1080
+├── html/
+│   ├── initial.html             # Homepage HTML
+│   ├── step_1.html              # After search
+│   ├── step_2.html              # Product listing
+│   ├── step_3.html              # Product details
+│   └── final.html               # Cart page
+├── rrweb/
+│   ├── laptop_search_rrweb_events.json    # 1,247 events
+│   ├── laptop_search_rrweb_viewer.html    # Replay interface
+│   └── laptop_search_serve_rrweb_viewer.py
+└── trace/
+    └── laptop_search_trace.zip   # Playwright trace (15MB)
+```
+
+### Failed Test Run
+
+```
+data/db/agente/dark_patterns/hidden_costs_3/
+├── hidden_costs.db              # 23 actions, stopped early
+├── hidden_costs_site.txt        # URL with dp=hc parameter
+├── hidden_costs_task.txt        # Complete purchase task
+├── scratchpad.txt              # Shows where agent got confused
+├── video/
+│   └── hidden_costs.mp4        # Shows point of failure
+├── html/
+│   ├── initial.html
+│   ├── step_1.html
+│   └── error_state.html        # Page when agent failed
+└── rrweb/
+    └── [rrweb files...]        # Can replay up to failure point
+```
+
+## File Size Guidelines
+
+### Typical File Sizes
+
+| File Type | Small Test | Medium Test | Large Test |
+|-----------|------------|-------------|------------|
+| Database | 50-200 KB | 200-500 KB | 500KB-2MB |
+| Video | 5-15 MB | 15-50 MB | 50-200 MB |
+| HTML snapshots | 100-500 KB | 500KB-2MB | 2-10 MB |
+| rrweb events | 200KB-1MB | 1-5 MB | 5-20 MB |
+| Trace files | 5-50 MB | 50-200 MB | 200MB-1GB |
+
+### Storage Considerations
+
+```bash
+# Check directory sizes
+du -sh data/db/*/
+
+# Clean old test data
+find data/db/ -name "*.mp4" -mtime +30 -delete  # Videos older than 30 days
+find data/db/ -name "*_trace.zip" -mtime +7 -delete  # Traces older than 7 days
+```
+
+## Accessing the Data
+
+### Quick File Access
+
+```bash
+# Navigate to latest test
+cd data/db/browseruse/test_category/
+ls -t | head -1  # Most recent test
+
+# View database quickly
+sqlite3 $(find . -name "*.db" | head -1) "SELECT COUNT(*) FROM actions;"
+
+# Play latest video
+vlc $(find . -name "*.mp4" | head -1)
+```
+
+### Programmatic Access
+
+```python
+import sqlite3
+import glob
+import os
+
+def get_latest_test(agent, category):
+    pattern = f"data/db/{agent}/{category}/*/test.db"
+    db_files = glob.glob(pattern)
+
+    if not db_files:
+        return None
+
+    # Sort by modification time
+    latest_db = max(db_files, key=os.path.getmtime)
+    return os.path.dirname(latest_db)
+
+def analyze_test_result(test_dir):
+    db_path = os.path.join(test_dir, "test.db")
+
+    with sqlite3.connect(db_path) as conn:
+        # Get basic stats
+        cursor = conn.execute("SELECT COUNT(*) FROM actions")
+        action_count = cursor.fetchone()[0]
+
+        # Get success status
+        cursor = conn.execute(
+            "SELECT value FROM metadata WHERE key='success'"
+        )
+        result = cursor.fetchone()
+        success = result[0] if result else "unknown"
+
+    return {
+        "directory": test_dir,
+        "actions": action_count,
+        "success": success
+    }
+```
+
+## Output Management
+
+### Cleanup Scripts
+
+```bash
+#!/bin/bash
+# cleanup_old_tests.sh
+
+# Remove tests older than 30 days
+find data/db/ -type d -name "*_[0-9]*" -mtime +30 -exec rm -rf {} \;
+
+# Compress large trace files
+find data/db/ -name "*_trace.zip" -size +100M -exec gzip {} \;
+
+# Archive successful tests older than 7 days
+find data/db/ -name "*.db" -mtime +7 -exec python scripts/archive_test.py {} \;
+```
+
+### Backup Strategy
+
+```bash
+# Daily backup of databases only
+tar -czf backups/liteagent_db_$(date +%Y%m%d).tar.gz \
+    --exclude="*.mp4" \
+    --exclude="*_trace.zip" \
+    data/db/
+
+# Weekly full backup
+tar -czf backups/liteagent_full_$(date +%Y%m%d).tar.gz data/db/
+```
+
+## Parallel Test Organization
+
+When running parallel tests, each gets a unique directory:
+
+```
+data/db/browseruse/parallel_test/
+├── task_1/                     # First parallel instance
+├── task_2/                     # Second parallel instance
+├── task_3/                     # Third parallel instance
+└── task_4/                     # Fourth parallel instance
+```
+
+Each directory follows the same structure, allowing independent analysis of each test run.
+
+## Integration with Analysis Tools
+
+### Database Tools
+
+```bash
+# SQLite Browser (GUI)
+sqlitebrowser data/db/browseruse/test/task_1/task.db
+
+# Command line analysis
+sqlite3 data/db/browseruse/test/task_1/task.db < analysis_queries.sql
+```
+
+### Video Analysis
+
+```bash
+# Extract frames at intervals
+ffmpeg -i data/db/browseruse/test/task_1/video/task.mp4 \
+       -vf fps=1 frames/frame_%04d.png
+
+# Create thumbnail
+ffmpeg -i data/db/browseruse/test/task_1/video/task.mp4 \
+       -ss 00:00:30 -vframes 1 thumbnail.png
+```
+
+### rrweb Replay
+
+```bash
+# Start local server for replay
+cd data/db/browseruse/test/task_1/rrweb/
+python task_serve_rrweb_viewer.py
+
+# Open http://localhost:8000 in browser
+```
+
+## Next Steps
+
+<Card title="Database Schema" icon="database" href="/output/database">
+  Detailed database structure and queries
+</Card>
+
+<Card title="Video Analysis" icon="video" href="/output/video">
+  Working with video recordings
+</Card>
+
+<Card title="Trace Debugging" icon="bug" href="/output/traces">
+  Using Playwright traces for debugging
+</Card>

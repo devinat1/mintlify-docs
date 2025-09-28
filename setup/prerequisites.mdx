@@ -1,0 +1,389 @@
+---
+title: "Prerequisites"
+description: "System requirements and dependencies for running LiteAgent"
+---
+
+## System Requirements
+
+### Minimum Requirements
+- **OS**: Ubuntu 22.04+ / macOS 12+ / Windows 10+ with WSL2
+- **RAM**: 8GB minimum, 16GB recommended
+- **Storage**: 20GB free space
+- **CPU**: 4 cores minimum, 8 cores recommended
+- **Network**: Stable internet connection for API calls
+
+### Recommended Specifications
+- **RAM**: 32GB for parallel execution
+- **Storage**: 50GB+ for large datasets
+- **CPU**: 8+ cores for optimal performance
+- **Network**: High-speed connection (100+ Mbps)
+
+## Software Dependencies
+
+### Core Requirements
+
+<Tabs>
+
+<Tab title="Git">
+**Version**: 2.0 or higher
+
+```bash
+# Install Git
+# Ubuntu/Debian
+sudo apt update && sudo apt install git
+
+# macOS (with Homebrew)
+brew install git
+
+# Windows
+# Download from https://git-scm.com/download/win
+
+# Verify installation
+git --version
+```
+</Tab>
+
+<Tab title="Python">
+**Version**: 3.11 (exactly - not 3.12+)
+
+```bash
+# Ubuntu/Debian
+sudo apt update
+sudo apt install python3.11 python3.11-venv python3.11-dev
+
+# macOS (with Homebrew)
+brew install python@3.11
+
+# Using pyenv (recommended)
+pyenv install 3.11.9
+pyenv local 3.11.9
+
+# Verify installation
+python3.11 --version
+```
+
+<Warning>
+LiteAgent requires Python 3.11 specifically. Python 3.12+ may cause compatibility issues with some agents.
+</Warning>
+</Tab>
+
+<Tab title="Docker">
+**Version**: 20.10+ (recommended for production)
+
+```bash
+# Ubuntu/Debian
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# macOS
+brew install --cask docker
+
+# Windows
+# Download Docker Desktop from docker.com
+
+# Verify installation
+docker --version
+docker compose version
+```
+</Tab>
+
+</Tabs>
+
+### Optional Dependencies
+
+| Tool | Purpose | Installation |
+|------|---------|-------------|
+| **Node.js 18+** | TrickyArena websites | `brew install node` |
+| **Conda** | Python environment management | Download from anaconda.com |
+| **Chrome/Chromium** | Browser automation | `sudo apt install chromium-browser` |
+| **SQLite Browser** | Database inspection | `sudo apt install sqlitebrowser` |
+
+## API Keys Required
+
+LiteAgent requires API keys for various agents:
+
+### Primary APIs
+
+<AccordionGroup>
+
+<Accordion title="OpenAI (for BrowserUse, WebArena)">
+- **Purpose**: Powers GPT-4 based agents
+- **Cost**: $0.01-0.03 per 1K tokens
+- **Get API Key**: [platform.openai.com](https://platform.openai.com/api-keys)
+- **Environment Variable**: `OPENAI_API_KEY`
+</Accordion>
+
+<Accordion title="Anthropic (for Agent E)">
+- **Purpose**: Powers Claude-based agents
+- **Cost**: $0.015-0.075 per 1K tokens
+- **Get API Key**: [console.anthropic.com](https://console.anthropic.com/)
+- **Environment Variable**: `ANTHROPIC_API_KEY`
+</Accordion>
+
+<Accordion title="Google (for Gemini models)">
+- **Purpose**: Alternative LLM provider
+- **Cost**: Variable pricing
+- **Get API Key**: [ai.google.dev](https://ai.google.dev/)
+- **Environment Variables**: `GOOGLE_API_KEY`, `GEMINI_API_KEY`
+</Accordion>
+
+</AccordionGroup>
+
+### Agent-Specific APIs
+
+<AccordionGroup>
+
+<Accordion title="MultiOn">
+- **Purpose**: MultiOn agent access
+- **Get API Key**: [multion.ai](https://www.multion.ai/)
+- **Environment Variable**: `MULTION_API_KEY`
+</Accordion>
+
+<Accordion title="DoBrowser">
+- **Purpose**: DoBrowser extension
+- **Get API Key**: [dobrowser.com](https://dobrowser.com/)
+- **Environment Variable**: `DOBROWSER_API_KEY`
+</Accordion>
+
+<Accordion title="Skyvern">
+- **Purpose**: Computer vision agent
+- **Get API Key**: [skyvern.com](https://www.skyvern.com/)
+- **Environment Variable**: `SKYVERN_API_KEY`
+</Accordion>
+
+</AccordionGroup>
+
+## Environment Setup
+
+### 1. Check System Compatibility
+
+Run the compatibility check script:
+
+```bash
+# Download and run system check
+curl -fsSL https://raw.githubusercontent.com/devinat1/agent-collector/main/scripts/check-system.sh | bash
+```
+
+### 2. Verify Python Installation
+
+```bash
+# Check Python version
+python3.11 --version
+
+# Check pip
+python3.11 -m pip --version
+
+# Install virtual environment
+python3.11 -m pip install virtualenv
+```
+
+### 3. Test Docker Setup
+
+```bash
+# Test Docker installation
+docker run hello-world
+
+# Test Docker Compose
+docker compose version
+
+# Check available resources
+docker system df
+```
+
+## Platform-Specific Notes
+
+### Ubuntu 24.04 LTS
+
+<AccordionGroup>
+
+<Accordion title="Complete Setup Script">
+```bash
+#!/bin/bash
+# Ubuntu 24.04 setup script
+
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install dependencies
+sudo apt install -y \
+    python3.11 \
+    python3.11-venv \
+    python3.11-dev \
+    git \
+    curl \
+    wget \
+    build-essential \
+    chromium-browser \
+    sqlite3 \
+    sqlitebrowser
+
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# Install Node.js
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
+
+echo "Setup complete! Please log out and back in for Docker permissions."
+```
+</Accordion>
+
+</AccordionGroup>
+
+### macOS
+
+<AccordionGroup>
+
+<Accordion title="Homebrew Setup">
+```bash
+# Install Homebrew if not present
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install all dependencies
+brew install python@3.11 git docker node sqlite
+brew install --cask docker
+
+# For M1/M2 Macs, ensure Rosetta 2 is installed
+softwareupdate --install-rosetta
+```
+</Accordion>
+
+</AccordionGroup>
+
+### Windows (WSL2)
+
+<AccordionGroup>
+
+<Accordion title="WSL2 Setup">
+```powershell
+# Install WSL2 (run as Administrator)
+wsl --install
+
+# Install Ubuntu 22.04
+wsl --install -d Ubuntu-22.04
+
+# Then follow Ubuntu setup instructions in WSL2
+```
+</Accordion>
+
+</AccordionGroup>
+
+## Verification Checklist
+
+Before proceeding, verify all requirements:
+
+<Steps>
+
+<Step title="System Check">
+- [ ] OS version meets minimum requirements
+- [ ] Sufficient RAM and disk space
+- [ ] Internet connection stable
+</Step>
+
+<Step title="Software Check">
+- [ ] Python 3.11 installed: `python3.11 --version`
+- [ ] Git installed: `git --version`
+- [ ] Docker installed: `docker --version`
+- [ ] Docker Compose available: `docker compose version`
+</Step>
+
+<Step title="Permissions Check">
+- [ ] User in docker group: `groups $USER | grep docker`
+- [ ] Can run docker without sudo: `docker run hello-world`
+- [ ] Python pip working: `python3.11 -m pip --version`
+</Step>
+
+<Step title="API Keys Ready">
+- [ ] OpenAI API key obtained
+- [ ] Other agent-specific keys as needed
+- [ ] Keys have sufficient credits/quota
+</Step>
+
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+
+<Accordion title="Python version conflicts">
+If you have multiple Python versions:
+```bash
+# Use pyenv for version management
+curl https://pyenv.run | bash
+pyenv install 3.11.9
+pyenv local 3.11.9
+```
+</Accordion>
+
+<Accordion title="Docker permission denied">
+If Docker commands fail with permission errors:
+```bash
+# Add user to docker group
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Or reboot system
+sudo reboot
+```
+</Accordion>
+
+<Accordion title="Low disk space">
+If you're running low on space:
+```bash
+# Clean Docker cache
+docker system prune -a
+
+# Clean package cache (Ubuntu)
+sudo apt autoclean && sudo apt autoremove
+
+# Check space usage
+df -h
+du -sh ~/.cache
+```
+</Accordion>
+
+</AccordionGroup>
+
+## Performance Optimization
+
+### System Tuning
+
+```bash
+# Increase file watch limits (Linux)
+echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+
+# Optimize Docker settings
+# Add to /etc/docker/daemon.json:
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+```
+
+### Resource Allocation
+
+For optimal performance, allocate:
+- **Docker Desktop**: 8GB RAM, 4 CPUs minimum
+- **Browser agents**: 2GB RAM per instance
+- **Parallel execution**: 1GB RAM per concurrent test
+
+## Next Steps
+
+<Card title="Docker Setup" icon="docker" href="/setup/docker">
+  Configure Docker for LiteAgent deployment
+</Card>
+
+<Card title="Local Setup" icon="laptop" href="/setup/local">
+  Set up local development environment
+</Card>
+
+<Card title="Environment Variables" icon="key" href="/setup/environment">
+  Configure API keys and settings
+</Card>
