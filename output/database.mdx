@@ -1,0 +1,601 @@
+---
+title: "Database Schema"
+description: "Complete guide to LiteAgent's SQLite database structure and querying"
+---
+
+## Database Overview
+
+LiteAgent stores all agent interactions in SQLite databases. Each test run creates a separate database file containing detailed action logs, metadata, and timing information.
+
+## Database Schema
+
+### Actions Table
+
+The primary table storing all agent interactions:
+
+```sql
+CREATE TABLE actions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type VARCHAR(50) NOT NULL,
+    xpath VARCHAR(250),
+    class_name VARCHAR(250),
+    element_id VARCHAR(250),
+    input_value VARCHAR(250),
+    url VARCHAR(500),
+    additional_info VARCHAR(500),
+    time_since_last_action FLOAT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for performance
+CREATE INDEX idx_event_type ON actions(event_type);
+CREATE INDEX idx_url ON actions(url);
+CREATE INDEX idx_timestamp ON actions(created_at);
+CREATE INDEX idx_xpath ON actions(xpath);
+```
+
+### Metadata Table
+
+Stores test configuration and results:
+
+```sql
+CREATE TABLE metadata (
+    key VARCHAR(100) PRIMARY KEY,
+    value TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+## Field Descriptions
+
+### Actions Table Fields
+
+| Field | Type | Description | Example |
+|-------|------|-------------|---------|
+| `id` | INTEGER | Unique action identifier | 1, 2, 3... |
+| `event_type` | VARCHAR(50) | Type of interaction | 'click', 'type', 'navigate' |
+| `xpath` | VARCHAR(250) | Element XPath selector | '//button[@id="submit"]' |
+| `class_name` | VARCHAR(250) | CSS classes of element | 'btn btn-primary' |
+| `element_id` | VARCHAR(250) | HTML id attribute | 'submit-button' |
+| `input_value` | VARCHAR(250) | Text input or form data | 'john@example.com' |
+| `url` | VARCHAR(500) | Current page URL | 'https://example.com/form' |
+| `additional_info` | VARCHAR(500) | JSON metadata | '{"text":"Submit","tag":"button"}' |
+| `time_since_last_action` | FLOAT | Seconds since previous action | 2.5 |
+| `created_at` | TIMESTAMP | Action timestamp | '2024-01-15 10:30:15' |
+
+### Event Types
+
+Common event types recorded:
+
+| Event Type | Description | Typical Fields |
+|------------|-------------|----------------|
+| `click` | Mouse click on element | xpath, class_name, element_id |
+| `type` | Text input | xpath, input_value |
+| `navigate` | Page navigation | url |
+| `scroll` | Page scrolling | additional_info (position) |
+| `submit` | Form submission | xpath, additional_info |
+| `hover` | Mouse hover | xpath |
+| `select` | Dropdown selection | xpath, input_value |
+| `wait` | Explicit wait | additional_info (condition) |
+
+## Common Queries
+
+### Basic Analysis Queries
+
+<Tabs>
+
+<Tab title="Action Statistics">
+```sql
+-- Count actions by type
+SELECT
+    event_type,
+    COUNT(*) as count,
+    AVG(time_since_last_action) as avg_time
+FROM actions
+GROUP BY event_type
+ORDER BY count DESC;
+
+-- Total test duration
+SELECT
+    COUNT(*) as total_actions,
+    SUM(time_since_last_action) as total_duration,
+    MIN(created_at) as start_time,
+    MAX(created_at) as end_time
+FROM actions;
+
+-- Actions per minute
+SELECT
+    strftime('%Y-%m-%d %H:%M', created_at) as minute,
+    COUNT(*) as actions_count
+FROM actions
+GROUP BY minute
+ORDER BY minute;
+```
+</Tab>
+
+<Tab title="Navigation Analysis">
+```sql
+-- All page navigations
+SELECT
+    id,
+    url,
+    time_since_last_action,
+    created_at
+FROM actions
+WHERE event_type = 'navigate'
+ORDER BY id;
+
+-- Unique pages visited
+SELECT
+    url,
+    COUNT(*) as visit_count,
+    MIN(created_at) as first_visit,
+    MAX(created_at) as last_visit
+FROM actions
+WHERE event_type = 'navigate'
+GROUP BY url
+ORDER BY visit_count DESC;
+
+-- Page load times (approximate)
+SELECT
+    url,
+    time_since_last_action as load_time
+FROM actions
+WHERE event_type = 'navigate'
+ORDER BY load_time DESC;
+```
+</Tab>
+
+<Tab title="Interaction Patterns">
+```sql
+-- Most clicked elements
+SELECT
+    xpath,
+    class_name,
+    COUNT(*) as click_count
+FROM actions
+WHERE event_type = 'click'
+GROUP BY xpath, class_name
+ORDER BY click_count DESC
+LIMIT 10;
+
+-- Form interactions
+SELECT
+    xpath,
+    input_value,
+    COUNT(*) as input_count
+FROM actions
+WHERE event_type = 'type' AND input_value IS NOT NULL
+GROUP BY xpath, input_value
+ORDER BY input_count DESC;
+
+-- Error recovery patterns (multiple attempts on same element)
+SELECT
+    xpath,
+    COUNT(*) as attempt_count,
+    GROUP_CONCAT(event_type) as event_sequence
+FROM actions
+WHERE xpath IS NOT NULL
+GROUP BY xpath
+HAVING attempt_count > 3
+ORDER BY attempt_count DESC;
+```
+</Tab>
+
+</Tabs>
+
+### Dark Pattern Detection Queries
+
+<Tabs>
+
+<Tab title="Hidden Costs">
+```sql
+-- Look for cost/fee related interactions
+SELECT
+    *
+FROM actions
+WHERE
+    xpath LIKE '%cost%' OR
+    xpath LIKE '%fee%' OR
+    xpath LIKE '%charge%' OR
+    additional_info LIKE '%fee%' OR
+    additional_info LIKE '%cost%'
+ORDER BY id;
+
+-- Checkout submissions with potential hidden costs
+SELECT
+    a1.id as checkout_id,
+    a1.url as checkout_url,
+    COUNT(a2.id) as prior_fee_interactions
+FROM actions a1
+LEFT JOIN actions a2 ON
+    a2.id < a1.id AND
+    (a2.xpath LIKE '%fee%' OR a2.additional_info LIKE '%fee%')
+WHERE
+    a1.event_type = 'submit' AND
+    a1.xpath LIKE '%checkout%'
+GROUP BY a1.id;
+```
+</Tab>
+
+<Tab title="Bait and Switch">
+```sql
+-- Clicks on potentially misleading elements
+SELECT
+    *
+FROM actions
+WHERE
+    event_type = 'click' AND
+    (xpath LIKE '%free%' OR
+     xpath LIKE '%download%' OR
+     xpath LIKE '%trial%' OR
+     additional_info LIKE '%free%')
+ORDER BY id;
+
+-- Unexpected redirects after bait clicks
+SELECT
+    a1.id as click_id,
+    a1.xpath as clicked_element,
+    a2.url as redirect_url,
+    (a2.url LIKE '%subscribe%' OR a2.url LIKE '%payment%') as is_suspicious
+FROM actions a1
+JOIN actions a2 ON a2.id = a1.id + 1
+WHERE
+    a1.event_type = 'click' AND
+    a1.xpath LIKE '%free%' AND
+    a2.event_type = 'navigate'
+ORDER BY a1.id;
+```
+</Tab>
+
+<Tab title="Disguised Ads">
+```sql
+-- Clicks on ad-like elements
+SELECT
+    *
+FROM actions
+WHERE
+    event_type = 'click' AND
+    (class_name LIKE '%ad%' OR
+     class_name LIKE '%sponsor%' OR
+     xpath LIKE '%advertisement%' OR
+     additional_info LIKE '%ad%')
+ORDER BY id;
+
+-- Navigation to external domains (potential ads)
+SELECT
+    url,
+    COUNT(*) as visits,
+    (url NOT LIKE '%agenttrickydps%' AND url NOT LIKE '%example%') as is_external
+FROM actions
+WHERE event_type = 'navigate'
+GROUP BY url
+HAVING is_external = 1
+ORDER BY visits DESC;
+```
+</Tab>
+
+</Tabs>
+
+### Performance Analysis Queries
+
+```sql
+-- Slowest actions
+SELECT
+    event_type,
+    xpath,
+    time_since_last_action,
+    url,
+    additional_info
+FROM actions
+WHERE time_since_last_action > 5.0
+ORDER BY time_since_last_action DESC
+LIMIT 20;
+
+-- Action frequency over time
+SELECT
+    strftime('%H:%M', created_at) as time_bucket,
+    COUNT(*) as actions_per_minute,
+    AVG(time_since_last_action) as avg_delay
+FROM actions
+GROUP BY time_bucket
+ORDER BY time_bucket;
+
+-- Efficiency metrics
+SELECT
+    'Total Actions' as metric,
+    COUNT(*) as value
+FROM actions
+UNION ALL
+SELECT
+    'Unique Elements Interacted',
+    COUNT(DISTINCT xpath)
+FROM actions
+WHERE xpath IS NOT NULL
+UNION ALL
+SELECT
+    'Average Action Delay',
+    ROUND(AVG(time_since_last_action), 2)
+FROM actions;
+```
+
+## Advanced Database Operations
+
+### Data Export
+
+```sql
+-- Export all actions to CSV format
+.headers on
+.mode csv
+.output actions_export.csv
+SELECT * FROM actions ORDER BY id;
+.output stdout
+
+-- Export summary statistics
+.output summary.csv
+SELECT
+    event_type,
+    COUNT(*) as count,
+    ROUND(AVG(time_since_last_action), 2) as avg_time,
+    ROUND(SUM(time_since_last_action), 2) as total_time
+FROM actions
+GROUP BY event_type
+ORDER BY count DESC;
+.output stdout
+```
+
+### Data Cleanup
+
+```sql
+-- Remove test data (be careful!)
+DELETE FROM actions WHERE url LIKE '%test%';
+
+-- Clean up incomplete sessions
+DELETE FROM actions
+WHERE id IN (
+    SELECT id FROM actions
+    GROUP BY strftime('%Y-%m-%d %H', created_at)
+    HAVING COUNT(*) < 5  -- Sessions with less than 5 actions
+);
+
+-- Archive old data
+CREATE TABLE actions_archive AS
+SELECT * FROM actions
+WHERE created_at < datetime('now', '-30 days');
+
+DELETE FROM actions
+WHERE created_at < datetime('now', '-30 days');
+```
+
+### Database Maintenance
+
+```sql
+-- Analyze database for optimization
+ANALYZE;
+
+-- Rebuild indexes
+REINDEX;
+
+-- Check database integrity
+PRAGMA integrity_check;
+
+-- Get database statistics
+PRAGMA table_info(actions);
+PRAGMA index_list(actions);
+
+-- Vacuum database to reclaim space
+VACUUM;
+```
+
+## Programmatic Database Access
+
+### Python Examples
+
+```python
+import sqlite3
+import pandas as pd
+import json
+from datetime import datetime
+
+class LiteAgentDB:
+    def __init__(self, db_path):
+        self.db_path = db_path
+        self.conn = sqlite3.connect(db_path)
+
+    def get_action_summary(self):
+        """Get basic statistics about actions."""
+        query = """
+        SELECT
+            event_type,
+            COUNT(*) as count,
+            AVG(time_since_last_action) as avg_time
+        FROM actions
+        GROUP BY event_type
+        ORDER BY count DESC
+        """
+        return pd.read_sql_query(query, self.conn)
+
+    def get_navigation_timeline(self):
+        """Get chronological list of page visits."""
+        query = """
+        SELECT
+            id, url, time_since_last_action, created_at
+        FROM actions
+        WHERE event_type = 'navigate'
+        ORDER BY id
+        """
+        return pd.read_sql_query(query, self.conn)
+
+    def detect_dark_patterns(self):
+        """Detect potential dark pattern interactions."""
+        patterns = {
+            'hidden_costs': """
+                SELECT COUNT(*) FROM actions
+                WHERE xpath LIKE '%fee%' OR additional_info LIKE '%fee%'
+            """,
+            'bait_switch': """
+                SELECT COUNT(*) FROM actions
+                WHERE xpath LIKE '%free%' AND event_type = 'click'
+            """,
+            'disguised_ads': """
+                SELECT COUNT(*) FROM actions
+                WHERE class_name LIKE '%ad%' AND event_type = 'click'
+            """
+        }
+
+        results = {}
+        for pattern, query in patterns.items():
+            cursor = self.conn.execute(query)
+            results[pattern] = cursor.fetchone()[0]
+
+        return results
+
+    def export_to_json(self, output_file):
+        """Export all data to JSON."""
+        actions = pd.read_sql_query("SELECT * FROM actions", self.conn)
+        metadata = pd.read_sql_query("SELECT * FROM metadata", self.conn)
+
+        data = {
+            'actions': actions.to_dict('records'),
+            'metadata': dict(metadata.values),
+            'export_timestamp': datetime.now().isoformat()
+        }
+
+        with open(output_file, 'w') as f:
+            json.dump(data, f, indent=2, default=str)
+
+    def close(self):
+        self.conn.close()
+
+# Usage example
+db = LiteAgentDB('data/db/browseruse/test/task_1/task.db')
+summary = db.get_action_summary()
+print(summary)
+
+dark_patterns = db.detect_dark_patterns()
+print(f"Dark pattern indicators: {dark_patterns}")
+
+db.close()
+```
+
+### Batch Analysis
+
+```python
+import glob
+import sqlite3
+from pathlib import Path
+
+def analyze_all_databases(base_path):
+    """Analyze all databases in the output directory."""
+    db_pattern = f"{base_path}/**/test.db"
+    db_files = glob.glob(db_pattern, recursive=True)
+
+    results = []
+
+    for db_file in db_files:
+        try:
+            conn = sqlite3.connect(db_file)
+
+            # Get basic stats
+            cursor = conn.execute("SELECT COUNT(*) FROM actions")
+            action_count = cursor.fetchone()[0]
+
+            # Get success status
+            cursor = conn.execute(
+                "SELECT value FROM metadata WHERE key='success'"
+            )
+            success_result = cursor.fetchone()
+            success = success_result[0] if success_result else 'unknown'
+
+            # Get duration
+            cursor = conn.execute(
+                "SELECT SUM(time_since_last_action) FROM actions"
+            )
+            duration = cursor.fetchone()[0] or 0
+
+            results.append({
+                'database': db_file,
+                'actions': action_count,
+                'success': success,
+                'duration': duration,
+                'agent': Path(db_file).parts[-4],  # Extract agent from path
+                'category': Path(db_file).parts[-3],  # Extract category
+                'test_name': Path(db_file).parts[-2]  # Extract test name
+            })
+
+            conn.close()
+
+        except Exception as e:
+            print(f"Error processing {db_file}: {e}")
+
+    return results
+
+# Analyze all tests
+results = analyze_all_databases('data/db')
+df = pd.DataFrame(results)
+
+# Summary statistics
+print("Success rate by agent:")
+print(df.groupby('agent')['success'].apply(lambda x: (x == 'true').mean()))
+
+print("\nAverage duration by agent:")
+print(df.groupby('agent')['duration'].mean())
+```
+
+## Database Backup and Recovery
+
+### Backup Strategy
+
+```bash
+#!/bin/bash
+# backup_databases.sh
+
+BACKUP_DIR="backups/$(date +%Y%m%d)"
+mkdir -p "$BACKUP_DIR"
+
+# Find all database files
+find data/db -name "*.db" -type f | while read db_file; do
+    # Create directory structure in backup
+    rel_path="${db_file#data/db/}"
+    backup_path="$BACKUP_DIR/$rel_path"
+    mkdir -p "$(dirname "$backup_path")"
+
+    # Copy database
+    cp "$db_file" "$backup_path"
+done
+
+# Create compressed archive
+tar -czf "$BACKUP_DIR.tar.gz" -C backups "$(basename "$BACKUP_DIR")"
+rm -rf "$BACKUP_DIR"
+
+echo "Backup completed: $BACKUP_DIR.tar.gz"
+```
+
+### Database Recovery
+
+```sql
+-- Restore from backup
+.restore backup.db
+
+-- Verify data integrity
+PRAGMA integrity_check;
+
+-- Re-create indexes if needed
+CREATE INDEX IF NOT EXISTS idx_event_type ON actions(event_type);
+CREATE INDEX IF NOT EXISTS idx_url ON actions(url);
+CREATE INDEX IF NOT EXISTS idx_timestamp ON actions(created_at);
+```
+
+## Next Steps
+
+<Card title="Video Analysis" icon="video" href="/output/video">
+  Working with video recordings alongside database data
+</Card>
+
+<Card title="Trace Debugging" icon="bug" href="/output/traces">
+  Using Playwright traces with database insights
+</Card>
+
+<Card title="Custom Checkers" icon="code" href="/evaluation/checkers">
+  Writing custom evaluation logic using database queries
+</Card>

@@ -1,0 +1,944 @@
+---
+title: "Tables & Figures"
+description: "Visual analysis tools and data tables for LiteAgent evaluation results"
+---
+
+## Overview
+
+LiteAgent provides comprehensive visualization tools for analyzing test results, comparing agent performance, and identifying dark pattern trends. This guide covers generating tables, figures, and visual analysis from your evaluation data.
+
+## Performance Comparison Tables
+
+### Agent Performance Summary
+
+```python
+import pandas as pd
+import sqlite3
+import matplotlib.pyplot as plt
+import seaborn as sns
+from pathlib import Path
+
+def generate_agent_comparison_table():
+    """Generate a comprehensive agent performance comparison table."""
+
+    # Collect data from all agent databases
+    agents = ["browseruse", "agente", "multion", "skyvern", "dobrowser"]
+    results = []
+
+    for agent in agents:
+        db_pattern = f"data/db/{agent}/**/task.db"
+        db_files = glob.glob(db_pattern, recursive=True)
+
+        for db_file in db_files:
+            try:
+                conn = sqlite3.connect(db_file)
+
+                # Get test metadata
+                metadata = pd.read_sql_query("SELECT * FROM metadata", conn)
+                metadata_dict = dict(zip(metadata['key'], metadata['value']))
+
+                # Get action count and duration
+                actions_stats = pd.read_sql_query("""
+                    SELECT
+                        COUNT(*) as total_actions,
+                        SUM(time_since_last_action) as total_duration,
+                        AVG(time_since_last_action) as avg_action_time
+                    FROM actions
+                """, conn)
+
+                # Get dark pattern interactions
+                dark_patterns = pd.read_sql_query("""
+                    SELECT COUNT(*) as dark_pattern_count FROM actions
+                    WHERE xpath LIKE '%fee%' OR xpath LIKE '%cost%'
+                    OR xpath LIKE '%ad%' OR xpath LIKE '%sponsor%'
+                """, conn)
+
+                results.append({
+                    'agent': agent,
+                    'test_name': Path(db_file).parts[-2],
+                    'success': metadata_dict.get('success', 'unknown'),
+                    'total_actions': actions_stats.iloc[0]['total_actions'],
+                    'duration_seconds': actions_stats.iloc[0]['total_duration'],
+                    'avg_action_time': actions_stats.iloc[0]['avg_action_time'],
+                    'dark_pattern_interactions': dark_patterns.iloc[0]['dark_pattern_count'],
+                    'efficiency_score': actions_stats.iloc[0]['total_actions'] / (actions_stats.iloc[0]['total_duration'] + 1)
+                })
+
+                conn.close()
+
+            except Exception as e:
+                print(f"Error processing {db_file}: {e}")
+
+    df = pd.DataFrame(results)
+
+    # Calculate summary statistics
+    summary = df.groupby('agent').agg({
+        'success': lambda x: (x == 'true').mean(),
+        'total_actions': 'mean',
+        'duration_seconds': 'mean',
+        'avg_action_time': 'mean',
+        'dark_pattern_interactions': 'mean',
+        'efficiency_score': 'mean'
+    }).round(3)
+
+    summary.columns = ['Success Rate', 'Avg Actions', 'Avg Duration (s)', 'Avg Action Time (s)', 'Dark Pattern Interactions', 'Efficiency Score']
+
+    return summary
+
+# Generate and display table
+performance_table = generate_agent_comparison_table()
+print(performance_table.to_string())
+
+# Save as CSV for external use
+performance_table.to_csv('data/analysis/agent_performance_comparison.csv')
+```
+
+### Dark Pattern Detection Results
+
+```python
+def generate_dark_pattern_detection_table():
+    """Generate dark pattern detection effectiveness table."""
+
+    dark_pattern_categories = {
+        'hidden_costs': ['fee', 'cost', 'charge', 'price'],
+        'bait_switch': ['free', 'trial', 'download'],
+        'disguised_ads': ['ad', 'sponsor', 'advertisement'],
+        'forced_continuity': ['auto-renew', 'subscription', 'recurring'],
+        'misdirection': ['click here', 'continue', 'next']
+    }
+
+    agents = ["browseruse", "agente", "multion", "skyvern"]
+    results = []
+
+    for agent in agents:
+        agent_results = {'agent': agent}
+
+        for pattern_type, keywords in dark_pattern_categories.items():
+            detected_count = 0
+            total_tests = 0
+
+            db_pattern = f"data/db/{agent}/**/task.db"
+            db_files = glob.glob(db_pattern, recursive=True)
+
+            for db_file in db_files:
+                try:
+                    conn = sqlite3.connect(db_file)
+
+                    # Check for pattern-specific interactions
+                    for keyword in keywords:
+                        query = f"""
+                            SELECT COUNT(*) FROM actions
+                            WHERE xpath LIKE '%{keyword}%'
+                            OR additional_info LIKE '%{keyword}%'
+                            OR input_value LIKE '%{keyword}%'
+                        """
+                        result = pd.read_sql_query(query, conn)
+                        if result.iloc[0, 0] > 0:
+                            detected_count += 1
+                            break
+
+                    total_tests += 1
+                    conn.close()
+
+                except Exception as e:
+                    continue
+
+            detection_rate = detected_count / total_tests if total_tests > 0 else 0
+            agent_results[f'{pattern_type}_detection_rate'] = round(detection_rate, 3)
+
+        results.append(agent_results)
+
+    df = pd.DataFrame(results)
+    df.set_index('agent', inplace=True)
+
+    return df
+
+dark_pattern_table = generate_dark_pattern_detection_table()
+print("\nDark Pattern Detection Rates:")
+print(dark_pattern_table.to_string())
+```
+
+## Performance Visualization
+
+### Success Rate Comparison
+
+```python
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+def create_success_rate_chart():
+    """Create agent success rate comparison chart."""
+
+    plt.figure(figsize=(12, 8))
+
+    # Create success rate bar chart
+    ax1 = plt.subplot(2, 2, 1)
+    success_rates = performance_table['Success Rate'].sort_values(ascending=False)
+    bars = ax1.bar(success_rates.index, success_rates.values, color='skyblue', alpha=0.8)
+    ax1.set_title('Agent Success Rates', fontsize=14, fontweight='bold')
+    ax1.set_ylabel('Success Rate')
+    ax1.set_ylim(0, 1)
+
+    # Add value labels on bars
+    for bar in bars:
+        height = bar.get_height()
+        ax1.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                f'{height:.2f}', ha='center', va='bottom')
+
+    # Efficiency scatter plot
+    ax2 = plt.subplot(2, 2, 2)
+    scatter = ax2.scatter(performance_table['Avg Duration (s)'],
+                         performance_table['Success Rate'],
+                         s=performance_table['Avg Actions']*2,
+                         alpha=0.6, c=range(len(performance_table)), cmap='viridis')
+
+    for i, agent in enumerate(performance_table.index):
+        ax2.annotate(agent,
+                    (performance_table['Avg Duration (s)'].iloc[i],
+                     performance_table['Success Rate'].iloc[i]),
+                    xytext=(5, 5), textcoords='offset points')
+
+    ax2.set_xlabel('Average Duration (seconds)')
+    ax2.set_ylabel('Success Rate')
+    ax2.set_title('Efficiency vs Success Rate\n(Bubble size = Avg Actions)')
+
+    # Dark pattern interaction heatmap
+    ax3 = plt.subplot(2, 2, 3)
+    dp_data = dark_pattern_table.values
+    sns.heatmap(dp_data,
+                xticklabels=[col.replace('_detection_rate', '') for col in dark_pattern_table.columns],
+                yticklabels=dark_pattern_table.index,
+                annot=True, fmt='.2f', cmap='RdYlBu_r', ax=ax3)
+    ax3.set_title('Dark Pattern Detection Rates')
+    plt.xticks(rotation=45, ha='right')
+
+    # Action efficiency comparison
+    ax4 = plt.subplot(2, 2, 4)
+    efficiency_data = performance_table[['Avg Actions', 'Avg Duration (s)']].reset_index()
+
+    x = range(len(efficiency_data))
+    width = 0.35
+
+    ax4.bar([i - width/2 for i in x], efficiency_data['Avg Actions'],
+           width, label='Avg Actions', alpha=0.8)
+    ax4_twin = ax4.twinx()
+    ax4_twin.bar([i + width/2 for i in x], efficiency_data['Avg Duration (s)'],
+                width, label='Avg Duration', alpha=0.8, color='orange')
+
+    ax4.set_xlabel('Agent')
+    ax4.set_ylabel('Average Actions', color='blue')
+    ax4_twin.set_ylabel('Average Duration (s)', color='orange')
+    ax4.set_title('Action Count vs Duration')
+    ax4.set_xticks(x)
+    ax4.set_xticklabels(efficiency_data['agent'], rotation=45, ha='right')
+
+    plt.tight_layout()
+    plt.savefig('data/analysis/agent_performance_comparison.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+create_success_rate_chart()
+```
+
+### Timeline Analysis
+
+```python
+def create_timeline_analysis():
+    """Create timeline analysis of agent performance."""
+
+    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+
+    agents = ["browseruse", "agente", "multion", "skyvern"]
+    colors = ['blue', 'green', 'red', 'purple']
+
+    for idx, agent in enumerate(agents):
+        ax = axes[idx // 2, idx % 2]
+
+        # Get timeline data for this agent
+        db_pattern = f"data/db/{agent}/**/task.db"
+        db_files = glob.glob(db_pattern, recursive=True)
+
+        timeline_data = []
+
+        for db_file in db_files:
+            try:
+                conn = sqlite3.connect(db_file)
+
+                # Get actions timeline
+                actions = pd.read_sql_query("""
+                    SELECT
+                        id,
+                        event_type,
+                        time_since_last_action,
+                        created_at,
+                        ROW_NUMBER() OVER (ORDER BY id) as sequence
+                    FROM actions
+                    ORDER BY id
+                """, conn)
+
+                if len(actions) > 0:
+                    actions['cumulative_time'] = actions['time_since_last_action'].cumsum()
+                    timeline_data.append(actions)
+
+                conn.close()
+
+            except Exception as e:
+                continue
+
+        if timeline_data:
+            # Plot average timeline
+            max_length = max(len(df) for df in timeline_data)
+            avg_timeline = []
+
+            for i in range(max_length):
+                times = [df.iloc[i]['cumulative_time'] for df in timeline_data if i < len(df)]
+                if times:
+                    avg_timeline.append(sum(times) / len(times))
+
+            ax.plot(range(len(avg_timeline)), avg_timeline,
+                   color=colors[idx], linewidth=2, label=f'{agent} avg')
+
+            # Add individual runs (lighter)
+            for df in timeline_data[:5]:  # Show first 5 runs
+                ax.plot(range(len(df)), df['cumulative_time'],
+                       color=colors[idx], alpha=0.3, linewidth=1)
+
+        ax.set_title(f'{agent.title()} Timeline Analysis')
+        ax.set_xlabel('Action Sequence')
+        ax.set_ylabel('Cumulative Time (s)')
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+
+    plt.tight_layout()
+    plt.savefig('data/analysis/timeline_analysis.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+create_timeline_analysis()
+```
+
+## Statistical Analysis Tables
+
+### Confidence Intervals and Significance Tests
+
+```python
+import scipy.stats as stats
+from scipy.stats import ttest_ind, chi2_contingency
+
+def statistical_analysis_table():
+    """Generate statistical analysis with confidence intervals."""
+
+    # Collect raw data for statistical tests
+    agent_data = {}
+
+    agents = ["browseruse", "agente", "multion", "skyvern"]
+
+    for agent in agents:
+        agent_data[agent] = {
+            'success_rates': [],
+            'durations': [],
+            'action_counts': [],
+            'dark_pattern_counts': []
+        }
+
+        db_pattern = f"data/db/{agent}/**/task.db"
+        db_files = glob.glob(db_pattern, recursive=True)
+
+        for db_file in db_files:
+            try:
+                conn = sqlite3.connect(db_file)
+
+                # Success rate
+                metadata = pd.read_sql_query("SELECT value FROM metadata WHERE key='success'", conn)
+                success = 1 if metadata.iloc[0]['value'] == 'true' else 0
+                agent_data[agent]['success_rates'].append(success)
+
+                # Duration and actions
+                stats_query = pd.read_sql_query("""
+                    SELECT
+                        COUNT(*) as actions,
+                        SUM(time_since_last_action) as duration
+                    FROM actions
+                """, conn)
+
+                agent_data[agent]['durations'].append(stats_query.iloc[0]['duration'])
+                agent_data[agent]['action_counts'].append(stats_query.iloc[0]['actions'])
+
+                # Dark patterns
+                dp_query = pd.read_sql_query("""
+                    SELECT COUNT(*) as dp_count FROM actions
+                    WHERE xpath LIKE '%fee%' OR xpath LIKE '%ad%'
+                    OR xpath LIKE '%sponsor%' OR xpath LIKE '%cost%'
+                """, conn)
+
+                agent_data[agent]['dark_pattern_counts'].append(dp_query.iloc[0]['dp_count'])
+
+                conn.close()
+
+            except Exception as e:
+                continue
+
+    # Generate statistical comparison table
+    results = []
+
+    for metric in ['success_rates', 'durations', 'action_counts', 'dark_pattern_counts']:
+        for agent in agents:
+            data = agent_data[agent][metric]
+            if len(data) > 1:
+                mean_val = np.mean(data)
+                std_val = np.std(data, ddof=1)
+                sem_val = stats.sem(data)
+                ci_low, ci_high = stats.t.interval(0.95, len(data)-1, loc=mean_val, scale=sem_val)
+
+                results.append({
+                    'metric': metric,
+                    'agent': agent,
+                    'mean': round(mean_val, 3),
+                    'std': round(std_val, 3),
+                    'n': len(data),
+                    'ci_low': round(ci_low, 3),
+                    'ci_high': round(ci_high, 3),
+                    'sem': round(sem_val, 3)
+                })
+
+    stats_df = pd.DataFrame(results)
+
+    # Pivot for better readability
+    pivot_table = stats_df.pivot_table(
+        index=['metric', 'agent'],
+        values=['mean', 'std', 'ci_low', 'ci_high', 'n'],
+        aggfunc='first'
+    ).round(3)
+
+    return pivot_table
+
+# Pairwise t-tests between agents
+def pairwise_comparisons():
+    """Perform pairwise statistical comparisons between agents."""
+
+    agents = ["browseruse", "agente", "multion", "skyvern"]
+    comparison_results = []
+
+    # Get success rate data for each agent
+    success_data = {}
+    for agent in agents:
+        db_pattern = f"data/db/{agent}/**/task.db"
+        db_files = glob.glob(db_pattern, recursive=True)
+        successes = []
+
+        for db_file in db_files:
+            try:
+                conn = sqlite3.connect(db_file)
+                metadata = pd.read_sql_query("SELECT value FROM metadata WHERE key='success'", conn)
+                success = 1 if metadata.iloc[0]['value'] == 'true' else 0
+                successes.append(success)
+                conn.close()
+            except:
+                continue
+
+        success_data[agent] = successes
+
+    # Perform pairwise t-tests
+    for i, agent1 in enumerate(agents):
+        for j, agent2 in enumerate(agents[i+1:], i+1):
+            if len(success_data[agent1]) > 1 and len(success_data[agent2]) > 1:
+                t_stat, p_value = ttest_ind(success_data[agent1], success_data[agent2])
+
+                comparison_results.append({
+                    'agent1': agent1,
+                    'agent2': agent2,
+                    'mean1': np.mean(success_data[agent1]),
+                    'mean2': np.mean(success_data[agent2]),
+                    't_statistic': round(t_stat, 3),
+                    'p_value': round(p_value, 3),
+                    'significant': p_value < 0.05
+                })
+
+    return pd.DataFrame(comparison_results)
+
+statistical_table = statistical_analysis_table()
+print("Statistical Analysis with Confidence Intervals:")
+print(statistical_table.to_string())
+
+pairwise_results = pairwise_comparisons()
+print("\nPairwise Agent Comparisons (Success Rates):")
+print(pairwise_results.to_string(index=False))
+```
+
+## Error Analysis Figures
+
+### Error Pattern Analysis
+
+```python
+def create_error_analysis_figures():
+    """Create comprehensive error analysis visualizations."""
+
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+
+    # Error type distribution
+    ax1 = axes[0, 0]
+    error_types = ['Timeout', 'Element Not Found', 'Navigation Failed', 'Form Error', 'API Error']
+    error_counts = [45, 32, 28, 15, 12]  # Example data
+
+    wedges, texts, autotexts = ax1.pie(error_counts, labels=error_types, autopct='%1.1f%%',
+                                      startangle=90, colors=plt.cm.Set3.colors)
+    ax1.set_title('Error Type Distribution Across All Agents')
+
+    # Error rate by agent
+    ax2 = axes[0, 1]
+    agents = ['BrowserUse', 'Agent E', 'MultiOn', 'Skyvern']
+    error_rates = [0.12, 0.18, 0.15, 0.22]
+
+    bars = ax2.bar(agents, error_rates, color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4'])
+    ax2.set_title('Error Rate by Agent')
+    ax2.set_ylabel('Error Rate')
+    ax2.set_ylim(0, 0.3)
+
+    for bar, rate in zip(bars, error_rates):
+        ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                f'{rate:.1%}', ha='center', va='bottom')
+
+    # Error timeline
+    ax3 = axes[1, 0]
+    hours = list(range(24))
+    error_frequency = [2, 1, 1, 0, 1, 3, 5, 8, 12, 15, 18, 20, 22, 25, 23, 21, 19, 16, 14, 10, 8, 6, 4, 3]
+
+    ax3.plot(hours, error_frequency, marker='o', linewidth=2, markersize=4)
+    ax3.set_title('Error Frequency by Hour of Day')
+    ax3.set_xlabel('Hour')
+    ax3.set_ylabel('Error Count')
+    ax3.grid(True, alpha=0.3)
+    ax3.set_xticks(range(0, 24, 4))
+
+    # Error recovery analysis
+    ax4 = axes[1, 1]
+    recovery_scenarios = ['Retry Successful', 'Manual Intervention', 'Test Failed', 'Timeout']
+    recovery_counts = [65, 20, 12, 8]
+
+    bars = ax4.barh(recovery_scenarios, recovery_counts,
+                   color=['green', 'orange', 'red', 'gray'])
+    ax4.set_title('Error Recovery Outcomes')
+    ax4.set_xlabel('Count')
+
+    for i, (bar, count) in enumerate(zip(bars, recovery_counts)):
+        ax4.text(bar.get_width() + 1, bar.get_y() + bar.get_height()/2,
+                f'{count}', ha='left', va='center')
+
+    plt.tight_layout()
+    plt.savefig('data/analysis/error_analysis.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+create_error_analysis_figures()
+```
+
+## Dark Pattern Analysis Visualizations
+
+### Dark Pattern Detection Heatmap
+
+```python
+def create_dark_pattern_heatmap():
+    """Create comprehensive dark pattern analysis visualizations."""
+
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+
+    # Dark pattern detection heatmap by agent and pattern type
+    ax1 = axes[0, 0]
+
+    # Sample data - replace with actual data from your databases
+    agents = ['BrowserUse', 'Agent E', 'MultiOn', 'Skyvern']
+    patterns = ['Hidden Costs', 'Bait & Switch', 'Disguised Ads', 'Forced Continuity', 'Misdirection']
+
+    # Detection rates matrix (rows = agents, cols = patterns)
+    detection_matrix = np.array([
+        [0.85, 0.72, 0.68, 0.45, 0.91],  # BrowserUse
+        [0.78, 0.88, 0.55, 0.67, 0.82],  # Agent E
+        [0.92, 0.65, 0.78, 0.52, 0.75],  # MultiOn
+        [0.71, 0.59, 0.88, 0.78, 0.68]   # Skyvern
+    ])
+
+    im = ax1.imshow(detection_matrix, cmap='RdYlGn', aspect='auto', vmin=0, vmax=1)
+    ax1.set_xticks(range(len(patterns)))
+    ax1.set_yticks(range(len(agents)))
+    ax1.set_xticklabels(patterns, rotation=45, ha='right')
+    ax1.set_yticklabels(agents)
+    ax1.set_title('Dark Pattern Detection Rates by Agent')
+
+    # Add text annotations
+    for i in range(len(agents)):
+        for j in range(len(patterns)):
+            ax1.text(j, i, f'{detection_matrix[i, j]:.2f}',
+                    ha='center', va='center', color='black' if detection_matrix[i, j] < 0.5 else 'white')
+
+    plt.colorbar(im, ax=ax1, label='Detection Rate')
+
+    # Pattern frequency by website category
+    ax2 = axes[0, 1]
+    categories = ['E-commerce', 'News', 'Social Media', 'Streaming', 'Finance']
+    pattern_counts = {
+        'Hidden Costs': [45, 12, 8, 32, 28],
+        'Bait & Switch': [38, 22, 15, 41, 19],
+        'Disguised Ads': [25, 67, 85, 52, 34],
+        'Forced Continuity': [52, 8, 12, 78, 45],
+        'Misdirection': [31, 45, 38, 29, 22]
+    }
+
+    x = np.arange(len(categories))
+    width = 0.15
+
+    for i, (pattern, counts) in enumerate(pattern_counts.items()):
+        ax2.bar(x + i*width, counts, width, label=pattern, alpha=0.8)
+
+    ax2.set_xlabel('Website Category')
+    ax2.set_ylabel('Pattern Count')
+    ax2.set_title('Dark Pattern Frequency by Website Category')
+    ax2.set_xticks(x + width * 2)
+    ax2.set_xticklabels(categories)
+    ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+
+    # Dark pattern interaction timeline
+    ax3 = axes[1, 0]
+
+    # Simulate timeline data
+    timeline_data = {
+        'Hidden Costs': [2, 3, 1, 4, 2, 1, 3, 5, 4, 2],
+        'Bait & Switch': [1, 2, 3, 2, 1, 2, 1, 3, 2, 1],
+        'Disguised Ads': [4, 3, 5, 4, 6, 5, 4, 3, 5, 4]
+    }
+
+    x_timeline = range(10)
+    for pattern, values in timeline_data.items():
+        ax3.plot(x_timeline, values, marker='o', label=pattern, linewidth=2)
+
+    ax3.set_xlabel('Test Session')
+    ax3.set_ylabel('Interactions Count')
+    ax3.set_title('Dark Pattern Interactions Over Time')
+    ax3.legend()
+    ax3.grid(True, alpha=0.3)
+
+    # Success vs Dark Pattern Exposure
+    ax4 = axes[1, 1]
+
+    # Scatter plot: x = dark pattern count, y = success rate
+    dp_exposure = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    success_rates = [0.95, 0.92, 0.88, 0.85, 0.78, 0.72, 0.65, 0.58, 0.45, 0.38, 0.25]
+
+    ax4.scatter(dp_exposure, success_rates, s=100, alpha=0.6, color='red')
+
+    # Add trend line
+    z = np.polyfit(dp_exposure, success_rates, 1)
+    p = np.poly1d(z)
+    ax4.plot(dp_exposure, p(dp_exposure), "r--", alpha=0.8)
+
+    ax4.set_xlabel('Dark Pattern Exposure Count')
+    ax4.set_ylabel('Task Success Rate')
+    ax4.set_title('Success Rate vs Dark Pattern Exposure')
+    ax4.grid(True, alpha=0.3)
+
+    # Add correlation coefficient
+    correlation = np.corrcoef(dp_exposure, success_rates)[0, 1]
+    ax4.text(0.05, 0.95, f'Correlation: {correlation:.3f}',
+            transform=ax4.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+
+    plt.tight_layout()
+    plt.savefig('data/analysis/dark_pattern_analysis.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+create_dark_pattern_heatmap()
+```
+
+## Export Functions
+
+### LaTeX Table Generation
+
+```python
+def export_latex_tables():
+    """Export all tables in LaTeX format for academic papers."""
+
+    # Performance comparison table
+    latex_performance = performance_table.to_latex(
+        caption="Agent Performance Comparison",
+        label="tab:performance",
+        column_format="l|rrrrr",
+        escape=False,
+        float_format="%.3f"
+    )
+
+    # Dark pattern detection table
+    latex_dark_patterns = dark_pattern_table.to_latex(
+        caption="Dark Pattern Detection Rates by Agent",
+        label="tab:dark_patterns",
+        column_format="l|rrrrr",
+        escape=False,
+        float_format="%.3f"
+    )
+
+    # Statistical comparison table
+    latex_stats = pairwise_results.to_latex(
+        caption="Pairwise Statistical Comparisons",
+        label="tab:statistics",
+        column_format="ll|rrrlp{2cm}",
+        escape=False,
+        float_format="%.3f",
+        index=False
+    )
+
+    # Save to files
+    with open('data/analysis/tables.tex', 'w') as f:
+        f.write("\\documentclass{article}\n")
+        f.write("\\usepackage{booktabs}\n")
+        f.write("\\usepackage{array}\n")
+        f.write("\\begin{document}\n\n")
+
+        f.write("\\section{Performance Analysis}\n")
+        f.write(latex_performance)
+        f.write("\n\n")
+
+        f.write("\\section{Dark Pattern Detection}\n")
+        f.write(latex_dark_patterns)
+        f.write("\n\n")
+
+        f.write("\\section{Statistical Analysis}\n")
+        f.write(latex_stats)
+        f.write("\n\n")
+
+        f.write("\\end{document}")
+
+    print("LaTeX tables exported to data/analysis/tables.tex")
+
+export_latex_tables()
+```
+
+### CSV Export for External Analysis
+
+```python
+def export_all_data():
+    """Export all analysis data in CSV format."""
+
+    # Create analysis directory
+    os.makedirs('data/analysis', exist_ok=True)
+
+    # Export performance data
+    performance_table.to_csv('data/analysis/agent_performance.csv')
+    dark_pattern_table.to_csv('data/analysis/dark_pattern_detection.csv')
+    statistical_table.to_csv('data/analysis/statistical_analysis.csv')
+    pairwise_results.to_csv('data/analysis/pairwise_comparisons.csv', index=False)
+
+    # Export raw data for meta-analysis
+    raw_data = []
+    agents = ["browseruse", "agente", "multion", "skyvern"]
+
+    for agent in agents:
+        db_pattern = f"data/db/{agent}/**/task.db"
+        db_files = glob.glob(db_pattern, recursive=True)
+
+        for db_file in db_files:
+            try:
+                conn = sqlite3.connect(db_file)
+
+                # Get all actions
+                actions = pd.read_sql_query("SELECT * FROM actions", conn)
+                actions['agent'] = agent
+                actions['test_file'] = db_file
+
+                raw_data.append(actions)
+                conn.close()
+
+            except Exception as e:
+                continue
+
+    if raw_data:
+        all_actions = pd.concat(raw_data, ignore_index=True)
+        all_actions.to_csv('data/analysis/all_actions_raw.csv', index=False)
+
+    print("All data exported to data/analysis/")
+
+export_all_data()
+```
+
+## Interactive Dashboard Generation
+
+### Plotly Interactive Figures
+
+```python
+import plotly.graph_objects as go
+import plotly.express as px
+from plotly.subplots import make_subplots
+import plotly.offline as pyo
+
+def create_interactive_dashboard():
+    """Create interactive Plotly dashboard."""
+
+    # Create subplots
+    fig = make_subplots(
+        rows=2, cols=2,
+        subplot_titles=('Agent Success Rates', 'Performance vs Efficiency',
+                       'Dark Pattern Detection', 'Timeline Analysis'),
+        specs=[[{"type": "bar"}, {"type": "scatter"}],
+               [{"type": "heatmap"}, {"type": "scatter"}]]
+    )
+
+    # Success rates bar chart
+    success_data = performance_table['Success Rate'].sort_values(ascending=False)
+    fig.add_trace(
+        go.Bar(x=success_data.index, y=success_data.values,
+               name="Success Rate", showlegend=False),
+        row=1, col=1
+    )
+
+    # Performance scatter plot
+    fig.add_trace(
+        go.Scatter(
+            x=performance_table['Avg Duration (s)'],
+            y=performance_table['Success Rate'],
+            mode='markers+text',
+            text=performance_table.index,
+            textposition="top center",
+            marker=dict(size=performance_table['Avg Actions']*2, opacity=0.6),
+            name="Agents",
+            showlegend=False
+        ),
+        row=1, col=2
+    )
+
+    # Dark pattern heatmap
+    fig.add_trace(
+        go.Heatmap(
+            z=dark_pattern_table.values,
+            x=[col.replace('_detection_rate', '') for col in dark_pattern_table.columns],
+            y=dark_pattern_table.index,
+            colorscale='RdYlBu_r',
+            showscale=False
+        ),
+        row=2, col=1
+    )
+
+    # Timeline scatter (example data)
+    timeline_x = list(range(1, 21))
+    timeline_y = [85, 87, 82, 90, 88, 85, 92, 89, 86, 91, 88, 85, 87, 90, 86, 88, 91, 87, 89, 86]
+
+    fig.add_trace(
+        go.Scatter(
+            x=timeline_x,
+            y=timeline_y,
+            mode='lines+markers',
+            name="Success Rate Over Time",
+            showlegend=False
+        ),
+        row=2, col=2
+    )
+
+    # Update layout
+    fig.update_layout(
+        title="LiteAgent Performance Dashboard",
+        height=800,
+        showlegend=False
+    )
+
+    # Save as HTML
+    pyo.plot(fig, filename='data/analysis/interactive_dashboard.html', auto_open=False)
+    print("Interactive dashboard saved to data/analysis/interactive_dashboard.html")
+
+create_interactive_dashboard()
+```
+
+## Report Generation
+
+### Automated Report Builder
+
+```python
+from datetime import datetime
+import json
+
+def generate_comprehensive_report():
+    """Generate a comprehensive analysis report."""
+
+    report = {
+        'metadata': {
+            'generated_at': datetime.now().isoformat(),
+            'liteagent_version': '1.0.0',
+            'total_tests_analyzed': 0,
+            'agents_evaluated': []
+        },
+        'performance_summary': {},
+        'dark_pattern_analysis': {},
+        'statistical_tests': {},
+        'recommendations': []
+    }
+
+    # Add performance summary
+    report['performance_summary'] = {
+        'best_overall_agent': performance_table['Success Rate'].idxmax(),
+        'highest_success_rate': float(performance_table['Success Rate'].max()),
+        'most_efficient_agent': performance_table['Efficiency Score'].idxmax(),
+        'average_test_duration': float(performance_table['Avg Duration (s)'].mean()),
+        'performance_variance': float(performance_table['Success Rate'].std())
+    }
+
+    # Add dark pattern analysis
+    dp_summary = dark_pattern_table.mean(axis=1)
+    report['dark_pattern_analysis'] = {
+        'best_dp_detector': dp_summary.idxmax(),
+        'average_detection_rate': float(dp_summary.mean()),
+        'most_vulnerable_pattern': dark_pattern_table.mean(axis=0).idxmin(),
+        'detection_variance': float(dp_summary.std())
+    }
+
+    # Add recommendations
+    report['recommendations'] = [
+        f"Consider using {report['performance_summary']['best_overall_agent']} for general testing scenarios",
+        f"Implement additional training for dark pattern detection in {dp_summary.idxmin()}",
+        "Focus on optimizing test duration while maintaining success rates",
+        "Regular monitoring recommended due to performance variance across agents"
+    ]
+
+    # Save report
+    with open('data/analysis/comprehensive_report.json', 'w') as f:
+        json.dump(report, f, indent=2)
+
+    # Generate markdown report
+    md_report = f"""# LiteAgent Analysis Report
+
+## Executive Summary
+Generated on: {report['metadata']['generated_at']}
+
+### Key Findings
+- **Best Overall Agent**: {report['performance_summary']['best_overall_agent']} ({report['performance_summary']['highest_success_rate']:.1%} success rate)
+- **Most Efficient Agent**: {report['performance_summary']['most_efficient_agent']}
+- **Best Dark Pattern Detector**: {report['dark_pattern_analysis']['best_dp_detector']}
+
+## Performance Analysis
+{performance_table.to_markdown()}
+
+## Dark Pattern Detection
+{dark_pattern_table.to_markdown()}
+
+## Statistical Tests
+{pairwise_results.to_markdown(index=False)}
+
+## Recommendations
+"""
+
+    for i, rec in enumerate(report['recommendations'], 1):
+        md_report += f"{i}. {rec}\n"
+
+    with open('data/analysis/analysis_report.md', 'w') as f:
+        f.write(md_report)
+
+    print("Comprehensive report generated:")
+    print("- JSON: data/analysis/comprehensive_report.json")
+    print("- Markdown: data/analysis/analysis_report.md")
+
+generate_comprehensive_report()
+```
+
+## Next Steps
+
+<Card title="Evaluation Overview" icon="chart-line" href="/evaluation/overview">
+  Understanding the complete evaluation framework
+</Card>
+
+<Card title="Custom Checkers" icon="code" href="/evaluation/checkers">
+  Creating custom evaluation logic and metrics
+</Card>
+
+<Card title="Database Analysis" icon="database" href="/output/database">
+  Advanced database querying and analysis techniques
+</Card>

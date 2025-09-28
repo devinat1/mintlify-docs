@@ -1,0 +1,654 @@
+---
+title: "Video Analysis"
+description: "Working with LiteAgent's video recordings for debugging and analysis"
+---
+
+## Video Recording Overview
+
+LiteAgent automatically records screen sessions during agent execution, creating MP4 videos that show exactly what the agent saw and did. These recordings are invaluable for debugging, analysis, and demonstration purposes.
+
+## Video File Structure
+
+### Location and Naming
+
+```
+data/db/{agent}/{category}/{test_run}/video/
+└── {test_name}.mp4
+```
+
+Example:
+```
+data/db/browseruse/dark_patterns/hidden_costs_1/video/
+└── hidden_costs.mp4
+```
+
+### Video Specifications
+
+| Property | Value | Notes |
+|----------|-------|-------|
+| Format | MP4 (H.264) | Widely compatible |
+| Resolution | 1920x1080 | Full HD |
+| Frame Rate | 30 FPS | Smooth playback |
+| Audio | None | Screen recording only |
+| Compression | Medium | Balance of quality and size |
+
+## Analyzing Video Content
+
+### Basic Video Information
+
+```bash
+# Get video info using ffmpeg
+ffmpeg -i data/db/browseruse/test/task_1/video/task.mp4 2>&1 | grep Duration
+
+# Using ffprobe for detailed info
+ffprobe -v quiet -print_format json -show_format -show_streams \
+    data/db/browseruse/test/task_1/video/task.mp4
+
+# Quick stats
+ls -lh data/db/browseruse/test/task_1/video/task.mp4
+```
+
+### Frame Extraction
+
+Extract frames for detailed analysis:
+
+```bash
+# Extract frame every 5 seconds
+ffmpeg -i input_video.mp4 -vf fps=1/5 frames/frame_%04d.png
+
+# Extract frames at specific timestamps
+ffmpeg -i input_video.mp4 -ss 00:01:30 -vframes 1 frame_90s.png
+ffmpeg -i input_video.mp4 -ss 00:02:15 -vframes 1 frame_135s.png
+
+# Extract frames during interactions (requires timestamp correlation)
+ffmpeg -i input_video.mp4 -ss 00:00:45 -t 00:00:10 -vf fps=2 interaction_%03d.png
+```
+
+### Thumbnail Generation
+
+```bash
+# Create thumbnail from middle of video
+ffmpeg -i input_video.mp4 -ss 00:00:30 -vframes 1 -vf scale=320:240 thumbnail.png
+
+# Create animated GIF from video segment
+ffmpeg -i input_video.mp4 -ss 00:01:00 -t 00:00:10 -vf "fps=5,scale=640:480" output.gif
+
+# Create multiple thumbnails
+ffmpeg -i input_video.mp4 -vf "fps=1/30,scale=160:120" thumbnails/thumb_%03d.png
+```
+
+## Correlating Video with Database
+
+### Time Synchronization
+
+Match video timestamps with database actions:
+
+```python
+import sqlite3
+import cv2
+import datetime
+
+def correlate_video_with_actions(video_path, db_path):
+    """Correlate video timestamps with database actions."""
+
+    # Open database
+    conn = sqlite3.connect(db_path)
+    cursor = conn.execute("""
+        SELECT
+            id,
+            event_type,
+            xpath,
+            time_since_last_action,
+            created_at
+        FROM actions
+        ORDER BY id
+    """)
+    actions = cursor.fetchall()
+
+    # Open video
+    cap = cv2.VideoCapture(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    correlations = []
+    cumulative_time = 0
+
+    for action in actions:
+        action_id, event_type, xpath, time_delta, created_at = action
+
+        # Calculate video timestamp
+        cumulative_time += time_delta
+        video_frame = int(cumulative_time * fps)
+        video_timestamp = cumulative_time
+
+        correlations.append({
+            'action_id': action_id,
+            'event_type': event_type,
+            'xpath': xpath,
+            'video_timestamp': video_timestamp,
+            'video_frame': video_frame,
+            'database_time': created_at
+        })
+
+    cap.release()
+    conn.close()
+
+    return correlations
+
+# Usage
+correlations = correlate_video_with_actions(
+    'data/db/browseruse/test/task_1/video/task.mp4',
+    'data/db/browseruse/test/task_1/task.db'
+)
+
+# Find video timestamp for specific action
+click_actions = [c for c in correlations if c['event_type'] == 'click']
+print(f"First click at video timestamp: {click_actions[0]['video_timestamp']:.1f}s")
+```
+
+### Frame-by-Frame Analysis
+
+Extract frames at action timestamps:
+
+```python
+import cv2
+import os
+
+def extract_action_frames(video_path, correlations, output_dir):
+    """Extract video frames at action timestamps."""
+
+    os.makedirs(output_dir, exist_ok=True)
+    cap = cv2.VideoCapture(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    for correlation in correlations:
+        # Seek to frame
+        frame_number = correlation['video_frame']
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+
+        ret, frame = cap.read()
+        if ret:
+            filename = f"{correlation['action_id']:03d}_{correlation['event_type']}.png"
+            filepath = os.path.join(output_dir, filename)
+            cv2.imwrite(filepath, frame)
+
+    cap.release()
+
+# Extract frames for all actions
+extract_action_frames(
+    'data/db/browseruse/test/task_1/video/task.mp4',
+    correlations,
+    'frames/actions/'
+)
+```
+
+## Video Processing Tools
+
+### Video Player Integration
+
+```python
+import cv2
+import sqlite3
+from datetime import datetime, timedelta
+
+class VideoAnalyzer:
+    def __init__(self, video_path, db_path):
+        self.video_path = video_path
+        self.db_path = db_path
+        self.cap = cv2.VideoCapture(video_path)
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+        self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.duration = self.total_frames / self.fps
+
+        # Load actions
+        self.actions = self.load_actions()
+
+    def load_actions(self):
+        """Load actions from database."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.execute("""
+            SELECT * FROM actions ORDER BY id
+        """)
+        actions = cursor.fetchall()
+        conn.close()
+        return actions
+
+    def get_action_at_time(self, timestamp):
+        """Get action occurring at specific video timestamp."""
+        cumulative_time = 0
+
+        for action in self.actions:
+            cumulative_time += action[8]  # time_since_last_action
+            if cumulative_time >= timestamp:
+                return action
+
+        return None
+
+    def play_with_annotations(self):
+        """Play video with action annotations."""
+        while True:
+            ret, frame = self.cap.read()
+            if not ret:
+                break
+
+            # Get current timestamp
+            current_frame = self.cap.get(cv2.CAP_PROP_POS_FRAMES)
+            current_time = current_frame / self.fps
+
+            # Find current action
+            action = self.get_action_at_time(current_time)
+            if action:
+                # Annotate frame
+                text = f"Action: {action[1]} at {current_time:.1f}s"
+                cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+            cv2.imshow('LiteAgent Video Analysis', frame)
+
+            # Control playback
+            key = cv2.waitKey(int(1000 / self.fps)) & 0xFF
+            if key == ord('q'):
+                break
+            elif key == ord(' '):  # Spacebar to pause
+                cv2.waitKey(0)
+
+        self.cap.release()
+        cv2.destroyAllWindows()
+
+# Usage
+analyzer = VideoAnalyzer(
+    'data/db/browseruse/test/task_1/video/task.mp4',
+    'data/db/browseruse/test/task_1/task.db'
+)
+analyzer.play_with_annotations()
+```
+
+### Video Segmentation
+
+Split video into segments based on actions:
+
+```python
+import subprocess
+import os
+
+def segment_video_by_actions(video_path, correlations, output_dir):
+    """Create video segments for each major action."""
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Group actions by type
+    action_segments = []
+    start_time = 0
+
+    for i, correlation in enumerate(correlations):
+        if correlation['event_type'] in ['click', 'submit', 'navigate']:
+            end_time = correlation['video_timestamp']
+
+            if end_time - start_time > 2:  # Minimum 2 seconds
+                action_segments.append({
+                    'start': start_time,
+                    'end': end_time,
+                    'action': correlation['event_type'],
+                    'index': i
+                })
+
+            start_time = end_time
+
+    # Create video segments
+    for segment in action_segments:
+        output_file = f"{output_dir}/segment_{segment['index']:03d}_{segment['action']}.mp4"
+
+        cmd = [
+            'ffmpeg', '-y',
+            '-i', video_path,
+            '-ss', str(segment['start']),
+            '-t', str(segment['end'] - segment['start']),
+            '-c', 'copy',
+            output_file
+        ]
+
+        subprocess.run(cmd, capture_output=True)
+
+# Create segments
+segment_video_by_actions(
+    'data/db/browseruse/test/task_1/video/task.mp4',
+    correlations,
+    'segments/'
+)
+```
+
+## Video Quality Analysis
+
+### Detecting Visual Issues
+
+```python
+import cv2
+import numpy as np
+
+def analyze_video_quality(video_path):
+    """Analyze video for quality issues."""
+
+    cap = cv2.VideoCapture(video_path)
+    frame_count = 0
+    issues = []
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        frame_count += 1
+
+        # Check for black frames
+        if np.mean(frame) < 10:
+            issues.append(f"Black frame at frame {frame_count}")
+
+        # Check for very bright frames (possible flashing)
+        if np.mean(frame) > 240:
+            issues.append(f"Very bright frame at frame {frame_count}")
+
+        # Check for blurry frames (using Laplacian variance)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
+        if blur_score < 100:
+            issues.append(f"Blurry frame at frame {frame_count} (score: {blur_score:.1f})")
+
+    cap.release()
+    return issues
+
+# Analyze video quality
+issues = analyze_video_quality('data/db/browseruse/test/task_1/video/task.mp4')
+for issue in issues:
+    print(issue)
+```
+
+### Motion Detection
+
+Detect periods of activity vs. idle time:
+
+```python
+def detect_motion_periods(video_path, threshold=25):
+    """Detect periods of motion in video."""
+
+    cap = cv2.VideoCapture(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    # Read first frame
+    ret, prev_frame = cap.read()
+    prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
+
+    motion_periods = []
+    frame_count = 0
+    motion_start = None
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        frame_count += 1
+        current_time = frame_count / fps
+
+        # Calculate frame difference
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        diff = cv2.absdiff(prev_gray, gray)
+        motion_score = np.mean(diff)
+
+        if motion_score > threshold:
+            if motion_start is None:
+                motion_start = current_time
+        else:
+            if motion_start is not None:
+                motion_periods.append({
+                    'start': motion_start,
+                    'end': current_time,
+                    'duration': current_time - motion_start
+                })
+                motion_start = None
+
+        prev_gray = gray
+
+    cap.release()
+    return motion_periods
+
+# Detect motion
+motion_periods = detect_motion_periods('data/db/browseruse/test/task_1/video/task.mp4')
+print(f"Found {len(motion_periods)} motion periods:")
+for period in motion_periods:
+    print(f"  {period['start']:.1f}s - {period['end']:.1f}s ({period['duration']:.1f}s)")
+```
+
+## Video Comparison
+
+### Comparing Multiple Test Runs
+
+```python
+def compare_videos(video_paths, output_path):
+    """Create side-by-side comparison of multiple videos."""
+
+    caps = [cv2.VideoCapture(path) for path in video_paths]
+    fps = caps[0].get(cv2.CAP_PROP_FPS)
+
+    # Get frame dimensions
+    height = int(caps[0].get(cv2.CAP_PROP_FRAME_HEIGHT))
+    width = int(caps[0].get(cv2.CAP_PROP_FRAME_WIDTH))
+
+    # Create video writer for comparison
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_path, fourcc, fps, (width * len(caps), height))
+
+    while True:
+        frames = []
+        all_ret = True
+
+        for cap in caps:
+            ret, frame = cap.read()
+            if not ret:
+                all_ret = False
+                break
+            frames.append(frame)
+
+        if not all_ret:
+            break
+
+        # Concatenate frames horizontally
+        combined_frame = np.hstack(frames)
+        out.write(combined_frame)
+
+    # Cleanup
+    for cap in caps:
+        cap.release()
+    out.release()
+
+# Compare successful vs failed runs
+compare_videos([
+    'data/db/browseruse/test/success_1/video/test.mp4',
+    'data/db/browseruse/test/failure_1/video/test.mp4'
+], 'comparison_success_vs_failure.mp4')
+```
+
+## Batch Video Processing
+
+### Processing Multiple Videos
+
+```bash
+#!/bin/bash
+# process_all_videos.sh
+
+# Find all video files
+find data/db -name "*.mp4" -type f | while read video_file; do
+    echo "Processing: $video_file"
+
+    # Extract directory info
+    dir_path=$(dirname "$video_file")
+    base_name=$(basename "$video_file" .mp4)
+
+    # Create thumbnails
+    ffmpeg -i "$video_file" -ss 00:00:30 -vframes 1 \
+        "${dir_path}/${base_name}_thumbnail.png" 2>/dev/null
+
+    # Create short preview (first 30 seconds)
+    ffmpeg -i "$video_file" -t 30 -c copy \
+        "${dir_path}/${base_name}_preview.mp4" 2>/dev/null
+
+    # Extract key frames
+    mkdir -p "${dir_path}/keyframes"
+    ffmpeg -i "$video_file" -vf "fps=1/10" \
+        "${dir_path}/keyframes/${base_name}_%03d.png" 2>/dev/null
+
+done
+
+echo "Video processing completed"
+```
+
+### Video Analytics Script
+
+```python
+#!/usr/bin/env python3
+# video_analytics.py
+
+import os
+import cv2
+import json
+import glob
+from pathlib import Path
+
+def analyze_all_videos(base_path):
+    """Analyze all videos in the database directory."""
+
+    video_pattern = f"{base_path}/**/video/*.mp4"
+    video_files = glob.glob(video_pattern, recursive=True)
+
+    results = []
+
+    for video_file in video_files:
+        print(f"Analyzing: {video_file}")
+
+        # Extract path components
+        path_parts = Path(video_file).parts
+        agent = path_parts[-4]
+        category = path_parts[-3]
+        test_run = path_parts[-2]
+
+        # Analyze video
+        cap = cv2.VideoCapture(video_file)
+
+        if not cap.isOpened():
+            print(f"Error opening {video_file}")
+            continue
+
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        duration = frame_count / fps if fps > 0 else 0
+        file_size = os.path.getsize(video_file)
+
+        cap.release()
+
+        results.append({
+            'video_file': video_file,
+            'agent': agent,
+            'category': category,
+            'test_run': test_run,
+            'duration_seconds': duration,
+            'frame_count': frame_count,
+            'fps': fps,
+            'file_size_mb': file_size / (1024 * 1024)
+        })
+
+    return results
+
+if __name__ == "__main__":
+    results = analyze_all_videos('data/db')
+
+    # Save results
+    with open('video_analytics.json', 'w') as f:
+        json.dump(results, f, indent=2)
+
+    # Print summary
+    total_duration = sum(r['duration_seconds'] for r in results)
+    total_size = sum(r['file_size_mb'] for r in results)
+
+    print(f"\nVideo Analytics Summary:")
+    print(f"Total videos: {len(results)}")
+    print(f"Total duration: {total_duration / 3600:.1f} hours")
+    print(f"Total size: {total_size:.1f} MB")
+    print(f"Average duration: {total_duration / len(results):.1f} seconds")
+```
+
+## Integration with Other Data
+
+### Video + Database Dashboard
+
+```python
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from datetime import datetime, timedelta
+
+def create_video_dashboard(video_path, db_path):
+    """Create dashboard showing video timeline with database events."""
+
+    # Load database actions
+    conn = sqlite3.connect(db_path)
+    actions_df = pd.read_sql_query("""
+        SELECT
+            id,
+            event_type,
+            time_since_last_action,
+            created_at
+        FROM actions
+        ORDER BY id
+    """, conn)
+
+    # Calculate cumulative time
+    actions_df['cumulative_time'] = actions_df['time_since_last_action'].cumsum()
+
+    # Create timeline plot
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 10))
+
+    # Plot 1: Action timeline
+    for event_type in actions_df['event_type'].unique():
+        event_data = actions_df[actions_df['event_type'] == event_type]
+        ax1.scatter(event_data['cumulative_time'], [event_type] * len(event_data),
+                   label=event_type, alpha=0.7)
+
+    ax1.set_xlabel('Time (seconds)')
+    ax1.set_ylabel('Event Type')
+    ax1.set_title('Agent Actions Timeline')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+
+    # Plot 2: Action frequency over time
+    time_bins = range(0, int(actions_df['cumulative_time'].max()) + 10, 10)
+    actions_df['time_bin'] = pd.cut(actions_df['cumulative_time'], bins=time_bins)
+    frequency = actions_df.groupby('time_bin').size()
+
+    ax2.bar(range(len(frequency)), frequency.values, alpha=0.7)
+    ax2.set_xlabel('Time Interval (10s bins)')
+    ax2.set_ylabel('Actions per Interval')
+    ax2.set_title('Action Frequency Distribution')
+    ax2.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig('video_dashboard.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+    conn.close()
+
+# Create dashboard
+create_video_dashboard(
+    'data/db/browseruse/test/task_1/video/task.mp4',
+    'data/db/browseruse/test/task_1/task.db'
+)
+```
+
+## Next Steps
+
+<Card title="Trace Debugging" icon="bug" href="/output/traces">
+  Advanced debugging with Playwright traces
+</Card>
+
+<Card title="Database Analysis" icon="database" href="/output/database">
+  Correlating video content with database queries
+</Card>
+
+<Card title="Evaluation Metrics" icon="chart-line" href="/evaluation/metrics">
+  Using video analysis in evaluation
+</Card>

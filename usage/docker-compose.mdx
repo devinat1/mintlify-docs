@@ -1,0 +1,570 @@
+---
+title: "Docker Compose Usage"
+description: "Running LiteAgent tests with Docker Compose for scalable deployment"
+---
+
+## Overview
+
+Docker Compose provides the easiest way to run LiteAgent tests at scale. It handles all dependencies, networking, and parallel execution automatically.
+
+## Quick Start
+
+<Steps>
+
+<Step title="Prepare Environment">
+```bash
+cd agent-collector
+cp collector/.env.example collector/.env
+# Edit collector/.env with your API keys
+```
+</Step>
+
+<Step title="Build Images">
+```bash
+# Build all agent images
+docker compose build
+
+# Or build specific agent
+docker compose build browseruse
+```
+</Step>
+
+<Step title="Run Tests">
+```bash
+# Run single agent
+docker compose up browseruse
+
+# Run multiple agents
+docker compose up browseruse agente multion
+```
+</Step>
+
+</Steps>
+
+## Docker Compose Configuration
+
+### Service Overview
+
+Each agent has its own service definition:
+
+```yaml
+services:
+  browseruse:
+    build:
+      context: .
+      dockerfile: Dockerfile.browseruse
+    image: browseruse-runner
+    volumes:
+      - ./data/db:/app/data/db
+      - ./data/prompts:/app/data/prompts
+      - ./collector/logs:/app/collector/logs
+    env_file:
+      - collector/.env
+    command: ["bash", "-c", "./run.sh browseruse --category test --timeout 180"]
+```
+
+### Available Services
+
+| Service | Agent | Dockerfile | Special Requirements |
+|---------|-------|------------|---------------------|
+| `browseruse` | BrowserUse | Dockerfile.browseruse | OpenAI API key |
+| `dobrowser` | DoBrowser | Dockerfile.dobrowser | Browser profile setup |
+| `multion` | MultiOn | Dockerfile.multion | MultiOn API key |
+| `agente` | Agent E | Dockerfile.agente | Anthropic API key |
+| `skyvern` | Skyvern | Dockerfile.skyvern | PostgreSQL + webhook |
+| `webarena` | WebArena | Dockerfile.webarena | Conda environment |
+| `visualwebarena` | VisualWebArena | Dockerfile.visualwebarena | Vision models |
+
+## Running Individual Agents
+
+### Basic Usage
+
+```bash
+# Run BrowserUse with default settings
+docker compose up browseruse
+
+# Run Agent E with custom category
+docker compose run agente bash -c "./run.sh agente --category dark_patterns"
+
+# Run with custom timeout
+docker compose run browseruse bash -c "./run.sh browseruse --timeout 300"
+```
+
+### Environment Overrides
+
+```bash
+# Override prompt category
+CATEGORY=benchmark docker compose up browseruse
+
+# Override timeout
+TIMEOUT=600 docker compose up agente
+
+# Multiple overrides
+CATEGORY=security TIMEOUT=900 docker compose up multion
+```
+
+## Parallel Execution
+
+### Using Replicas
+
+Deploy multiple instances of the same agent:
+
+```yaml
+services:
+  browseruse:
+    # ... standard configuration ...
+    deploy:
+      replicas: 5  # Run 5 parallel instances
+```
+
+Run with replicas:
+```bash
+docker compose up browseruse
+# This will start 5 parallel BrowserUse containers
+```
+
+### Using Scale Command
+
+```bash
+# Scale to multiple instances
+docker compose up --scale browseruse=5
+
+# Scale multiple services
+docker compose up --scale browseruse=3 --scale agente=2
+
+# Scale with background execution
+docker compose up -d --scale browseruse=10
+```
+
+### Worker ID Assignment
+
+For parallel execution, assign unique worker IDs:
+
+```yaml
+browseruse:
+  environment:
+    - WORKER_ID=${WORKER_ID:-1}
+  command: ["bash", "-c", "./run.sh browseruse --category test_${WORKER_ID} --timeout 180"]
+```
+
+## Advanced Configuration
+
+### Custom Categories per Instance
+
+```yaml
+services:
+  browseruse-benchmark:
+    extends: browseruse
+    command: ["bash", "-c", "./run.sh browseruse --category benchmark --timeout 180"]
+
+  browseruse-security:
+    extends: browseruse
+    command: ["bash", "-c", "./run.sh browseruse --category security --timeout 300"]
+
+  browseruse-performance:
+    extends: browseruse
+    command: ["bash", "-c", "./run.sh browseruse --category performance --timeout 600"]
+```
+
+Run specific test suites:
+```bash
+docker compose up browseruse-benchmark browseruse-security
+```
+
+### Environment-Specific Configurations
+
+Create `docker-compose.override.yml`:
+
+```yaml
+# docker-compose.override.yml
+services:
+  browseruse:
+    environment:
+      - LOG_LEVEL=DEBUG
+      - HEADLESS=false
+    volumes:
+      - ./debug_data:/app/debug_data
+```
+
+### Production Configuration
+
+Create `docker-compose.prod.yml`:
+
+```yaml
+# docker-compose.prod.yml
+services:
+  browseruse:
+    deploy:
+      replicas: 20
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+    restart: unless-stopped
+    environment:
+      - ENV=production
+      - LOG_LEVEL=WARNING
+```
+
+Use production config:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+```
+
+## Monitoring and Management
+
+### Viewing Logs
+
+```bash
+# View logs from all services
+docker compose logs
+
+# Follow logs in real-time
+docker compose logs -f
+
+# View logs from specific service
+docker compose logs browseruse
+
+# Filter logs by time
+docker compose logs --since 1h browseruse
+```
+
+### Service Management
+
+```bash
+# Check service status
+docker compose ps
+
+# Stop specific service
+docker compose stop browseruse
+
+# Restart service
+docker compose restart browseruse
+
+# Remove stopped containers
+docker compose rm
+```
+
+### Health Monitoring
+
+Add health checks to services:
+
+```yaml
+browseruse:
+  healthcheck:
+    test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=5)"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 60s
+```
+
+Monitor health:
+```bash
+# Check health status
+docker compose ps --filter health=healthy
+
+# View unhealthy services
+docker compose ps --filter health=unhealthy
+```
+
+## Data Management
+
+### Volume Configuration
+
+```yaml
+volumes:
+  # Persistent test results
+  - ./data/db:/app/data/db
+
+  # Test prompts (read-only)
+  - ./data/prompts:/app/data/prompts:ro
+
+  # Logs with size limits
+  - type: bind
+    source: ./collector/logs
+    target: /app/collector/logs
+    bind:
+      create_host_path: true
+```
+
+### Backup Strategy
+
+```bash
+#!/bin/bash
+# backup_results.sh
+
+# Create timestamped backup
+BACKUP_NAME="liteagent_$(date +%Y%m%d_%H%M%S)"
+
+# Stop services temporarily
+docker compose stop
+
+# Create backup
+tar -czf "backups/${BACKUP_NAME}.tar.gz" data/db/
+
+# Restart services
+docker compose up -d
+```
+
+## Networking
+
+### Internal Communication
+
+Services can communicate using service names:
+
+```yaml
+services:
+  skyvern:
+    depends_on:
+      - postgres
+    environment:
+      - DATABASE_URL=postgresql://user:pass@postgres:5432/skyvern
+
+  postgres:
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=skyvern
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+```
+
+### External Access
+
+Expose services for external access:
+
+```yaml
+services:
+  webhook-server:
+    ports:
+      - "8080:8080"
+    environment:
+      - WEBHOOK_PORT=8080
+
+  monitoring:
+    ports:
+      - "3000:3000"  # Grafana dashboard
+```
+
+## Troubleshooting
+
+### Common Issues
+
+<AccordionGroup>
+
+<Accordion title="Build failures">
+```bash
+# Clear build cache
+docker compose build --no-cache
+
+# Check build logs
+docker compose build browseruse 2>&1 | tee build.log
+
+# Debug build step by step
+docker build -f Dockerfile.browseruse --progress=plain .
+```
+</Accordion>
+
+<Accordion title="Service won't start">
+```bash
+# Check service logs
+docker compose logs browseruse
+
+# Run service interactively
+docker compose run browseruse bash
+
+# Check container resources
+docker stats $(docker compose ps -q)
+```
+</Accordion>
+
+<Accordion title="Out of resources">
+```bash
+# Clean up unused containers
+docker system prune -a
+
+# Remove old volumes
+docker volume prune
+
+# Check resource usage
+docker system df
+```
+</Accordion>
+
+</AccordionGroup>
+
+### Debug Mode
+
+Run services in debug mode:
+
+```yaml
+# docker-compose.debug.yml
+services:
+  browseruse:
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - HEADLESS=false
+    stdin_open: true
+    tty: true
+```
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.debug.yml run browseruse bash
+```
+
+## Performance Optimization
+
+### Resource Limits
+
+```yaml
+services:
+  browseruse:
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+```
+
+### Parallel Optimization
+
+```bash
+# Optimal parallel execution
+# Rule of thumb: 1 agent per 2GB RAM, 1 CPU core
+
+# For 16GB RAM, 8 CPU machine:
+docker compose up --scale browseruse=6
+
+# Monitor resource usage
+watch docker stats
+```
+
+### Storage Optimization
+
+```yaml
+volumes:
+  # Use tmpfs for temporary data
+  - type: tmpfs
+    target: /tmp
+    tmpfs:
+      size: 1G
+
+  # Compress logs
+  - ./logs:/app/logs:Z
+logging:
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
+```
+
+## CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+# .github/workflows/test.yml
+name: LiteAgent Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Set up environment
+        run: |
+          cp collector/.env.example collector/.env
+          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> collector/.env
+
+      - name: Run tests
+        run: |
+          docker compose up --scale browseruse=3 --abort-on-container-exit
+
+      - name: Upload results
+        uses: actions/upload-artifact@v2
+        with:
+          name: test-results
+          path: data/db/
+```
+
+### GitLab CI
+
+```yaml
+# .gitlab-ci.yml
+stages:
+  - test
+
+agent-tests:
+  stage: test
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker compose build
+  script:
+    - docker compose up --scale browseruse=5 --abort-on-container-exit
+  artifacts:
+    paths:
+      - data/db/
+    expire_in: 1 week
+```
+
+## Best Practices
+
+### 1. Environment Management
+
+```bash
+# Use environment-specific files
+docker compose -f docker-compose.yml -f docker-compose.${ENV}.yml up
+
+# Validate configuration
+docker compose config
+```
+
+### 2. Resource Planning
+
+```bash
+# Calculate resource needs
+# Per agent: ~2GB RAM, 1 CPU core
+# Plus overhead: 1GB RAM, 1 CPU core
+
+AGENTS=5
+MEMORY_NEEDED=$((AGENTS * 2 + 1))
+echo "Need ${MEMORY_NEEDED}GB RAM for ${AGENTS} agents"
+```
+
+### 3. Graceful Shutdown
+
+```yaml
+services:
+  browseruse:
+    stop_grace_period: 30s
+    stop_signal: SIGTERM
+```
+
+## Next Steps
+
+<Card title="Parallel Execution" icon="zap" href="/usage/parallel-execution">
+  Advanced parallel testing strategies
+</Card>
+
+<Card title="Output Analysis" icon="chart-bar" href="/output/structure">
+  Analyzing results from Docker Compose runs
+</Card>
+
+<Card title="Docker Setup" icon="docker" href="/setup/docker">
+  Advanced Docker configuration
+</Card>

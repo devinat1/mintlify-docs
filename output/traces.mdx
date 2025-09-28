@@ -1,0 +1,676 @@
+---
+title: "Trace Debugging"
+description: "Using Playwright traces for advanced debugging and analysis"
+---
+
+## Overview
+
+LiteAgent captures Playwright traces for detailed debugging information. These traces contain comprehensive data about browser interactions, network requests, JavaScript execution, and performance metrics.
+
+## Trace File Structure
+
+### Location and Format
+
+```
+data/db/{agent}/{category}/{test_run}/trace/
+└── {test_name}_trace.zip
+```
+
+### Trace Contents
+
+The trace ZIP file contains:
+- **Network logs**: All HTTP requests and responses
+- **Console logs**: JavaScript console output
+- **DOM snapshots**: Page state at each interaction
+- **Screenshots**: Visual state before/after actions
+- **Performance data**: Timing and resource usage
+- **Action metadata**: Detailed interaction information
+
+## Viewing Traces
+
+### Playwright Trace Viewer
+
+```bash
+# Install Playwright (if not already installed)
+pip install playwright
+playwright install
+
+# Open trace in browser-based viewer
+playwright show-trace data/db/browseruse/test/task_1/trace/task_trace.zip
+
+# The viewer will open at http://localhost:9323
+```
+
+### Trace Viewer Features
+
+The Playwright trace viewer provides:
+
+<Tabs>
+
+<Tab title="Timeline">
+- **Action Timeline**: Chronological list of all interactions
+- **Network Timeline**: HTTP requests and responses
+- **Screenshots**: Visual state at each step
+- **Console Output**: JavaScript logs and errors
+- **Performance Metrics**: Page load times and resource usage
+</Tab>
+
+<Tab title="Network Tab">
+- **Request Details**: Headers, body, timing
+- **Response Analysis**: Status codes, content, size
+- **Failed Requests**: Network errors and timeouts
+- **Resource Loading**: Images, scripts, stylesheets
+- **WebSocket Messages**: Real-time communication
+</Tab>
+
+<Tab title="Console Tab">
+- **JavaScript Errors**: Runtime exceptions
+- **Console Logs**: Debug output from the page
+- **Network Errors**: Failed resource loads
+- **Security Warnings**: Mixed content, CORS issues
+- **Performance Warnings**: Slow queries, large resources
+</Tab>
+
+<Tab title="Sources">
+- **Page Source**: HTML, CSS, JavaScript
+- **Resource Files**: All loaded assets
+- **Execution Context**: Script evaluation
+- **Error Stack Traces**: Detailed error information
+</Tab>
+
+</Tabs>
+
+## Programmatic Trace Analysis
+
+### Reading Trace Data
+
+```python
+import zipfile
+import json
+import os
+from pathlib import Path
+
+class TraceAnalyzer:
+    def __init__(self, trace_path):
+        self.trace_path = trace_path
+        self.trace_data = self._load_trace()
+
+    def _load_trace(self):
+        """Load and parse trace data from ZIP file."""
+        trace_data = {}
+
+        with zipfile.ZipFile(self.trace_path, 'r') as zip_file:
+            # List all files in trace
+            file_list = zip_file.namelist()
+
+            # Load trace metadata
+            if 'trace.json' in file_list:
+                with zip_file.open('trace.json') as f:
+                    trace_data['trace'] = json.load(f)
+
+            # Load network data
+            if 'network.json' in file_list:
+                with zip_file.open('network.json') as f:
+                    trace_data['network'] = json.load(f)
+
+            # Load console logs
+            if 'console.json' in file_list:
+                with zip_file.open('console.json') as f:
+                    trace_data['console'] = json.load(f)
+
+        return trace_data
+
+    def get_network_requests(self):
+        """Extract all network requests from trace."""
+        if 'network' not in self.trace_data:
+            return []
+
+        requests = []
+        for entry in self.trace_data['network']:
+            if entry.get('type') == 'request':
+                requests.append({
+                    'url': entry.get('url'),
+                    'method': entry.get('method'),
+                    'status': entry.get('status'),
+                    'duration': entry.get('duration'),
+                    'size': entry.get('size'),
+                    'timestamp': entry.get('timestamp')
+                })
+
+        return requests
+
+    def get_javascript_errors(self):
+        """Extract JavaScript errors from console logs."""
+        if 'console' not in self.trace_data:
+            return []
+
+        errors = []
+        for entry in self.trace_data['console']:
+            if entry.get('level') == 'error':
+                errors.append({
+                    'message': entry.get('text'),
+                    'source': entry.get('location'),
+                    'timestamp': entry.get('timestamp'),
+                    'stack': entry.get('stack')
+                })
+
+        return errors
+
+    def get_performance_metrics(self):
+        """Extract performance metrics from trace."""
+        metrics = {
+            'page_load_time': 0,
+            'dom_content_loaded': 0,
+            'time_to_interactive': 0,
+            'total_requests': 0,
+            'failed_requests': 0,
+            'total_size': 0
+        }
+
+        # Analyze network requests for performance
+        requests = self.get_network_requests()
+        metrics['total_requests'] = len(requests)
+        metrics['failed_requests'] = sum(1 for r in requests if r['status'] >= 400)
+        metrics['total_size'] = sum(r.get('size', 0) for r in requests)
+
+        # Find page load timing
+        if 'trace' in self.trace_data:
+            for entry in self.trace_data['trace']:
+                if entry.get('name') == 'loadEventEnd':
+                    metrics['page_load_time'] = entry.get('ts', 0) / 1000  # Convert to ms
+
+        return metrics
+
+# Usage
+analyzer = TraceAnalyzer('data/db/browseruse/test/task_1/trace/task_trace.zip')
+
+# Get network requests
+requests = analyzer.get_network_requests()
+print(f"Total network requests: {len(requests)}")
+
+# Get JavaScript errors
+errors = analyzer.get_javascript_errors()
+print(f"JavaScript errors: {len(errors)}")
+
+# Get performance metrics
+metrics = analyzer.get_performance_metrics()
+print(f"Performance metrics: {metrics}")
+```
+
+### Network Analysis
+
+```python
+def analyze_network_patterns(trace_path):
+    """Analyze network request patterns for issues."""
+
+    analyzer = TraceAnalyzer(trace_path)
+    requests = analyzer.get_network_requests()
+
+    analysis = {
+        'total_requests': len(requests),
+        'failed_requests': [],
+        'slow_requests': [],
+        'large_requests': [],
+        'external_requests': [],
+        'suspicious_requests': []
+    }
+
+    for req in requests:
+        # Failed requests
+        if req['status'] >= 400:
+            analysis['failed_requests'].append(req)
+
+        # Slow requests (>5 seconds)
+        if req.get('duration', 0) > 5000:
+            analysis['slow_requests'].append(req)
+
+        # Large requests (>1MB)
+        if req.get('size', 0) > 1024 * 1024:
+            analysis['large_requests'].append(req)
+
+        # External requests
+        url = req.get('url', '')
+        if not any(domain in url for domain in ['localhost', '127.0.0.1', 'agenttrickydps']):
+            analysis['external_requests'].append(req)
+
+        # Suspicious requests (trackers, ads)
+        if any(pattern in url.lower() for pattern in ['google-analytics', 'facebook', 'doubleclick', 'ads']):
+            analysis['suspicious_requests'].append(req)
+
+    return analysis
+
+# Analyze network patterns
+network_analysis = analyze_network_patterns('data/db/browseruse/test/task_1/trace/task_trace.zip')
+
+print("Network Analysis Results:")
+print(f"Failed requests: {len(network_analysis['failed_requests'])}")
+print(f"Slow requests: {len(network_analysis['slow_requests'])}")
+print(f"Large requests: {len(network_analysis['large_requests'])}")
+print(f"External requests: {len(network_analysis['external_requests'])}")
+print(f"Suspicious requests: {len(network_analysis['suspicious_requests'])}")
+```
+
+## Error Debugging
+
+### JavaScript Error Analysis
+
+```python
+def debug_javascript_errors(trace_path):
+    """Detailed analysis of JavaScript errors."""
+
+    analyzer = TraceAnalyzer(trace_path)
+    errors = analyzer.get_javascript_errors()
+
+    categorized_errors = {
+        'reference_errors': [],
+        'type_errors': [],
+        'syntax_errors': [],
+        'network_errors': [],
+        'other_errors': []
+    }
+
+    for error in errors:
+        message = error.get('message', '').lower()
+
+        if 'is not defined' in message or 'not a function' in message:
+            categorized_errors['reference_errors'].append(error)
+        elif 'cannot read property' in message or 'undefined' in message:
+            categorized_errors['type_errors'].append(error)
+        elif 'unexpected token' in message or 'syntax error' in message:
+            categorized_errors['syntax_errors'].append(error)
+        elif 'failed to fetch' in message or 'network error' in message:
+            categorized_errors['network_errors'].append(error)
+        else:
+            categorized_errors['other_errors'].append(error)
+
+    return categorized_errors
+
+# Debug JavaScript errors
+js_errors = debug_javascript_errors('data/db/browseruse/test/task_1/trace/task_trace.zip')
+
+for category, errors in js_errors.items():
+    if errors:
+        print(f"\n{category.replace('_', ' ').title()}: {len(errors)}")
+        for error in errors[:3]:  # Show first 3 errors
+            print(f"  - {error['message']}")
+```
+
+### Network Debugging
+
+```python
+def debug_network_issues(trace_path):
+    """Debug network-related issues."""
+
+    analyzer = TraceAnalyzer(trace_path)
+    requests = analyzer.get_network_requests()
+
+    issues = {
+        'timeouts': [],
+        'dns_failures': [],
+        'ssl_errors': [],
+        'cors_errors': [],
+        'rate_limits': []
+    }
+
+    for req in requests:
+        status = req.get('status', 0)
+        url = req.get('url', '')
+
+        # Timeouts
+        if status == 0 or req.get('duration', 0) > 30000:
+            issues['timeouts'].append(req)
+
+        # DNS failures
+        elif status in [0, -1] and 'dns' in req.get('error', '').lower():
+            issues['dns_failures'].append(req)
+
+        # SSL errors
+        elif status in [526, 525] or 'ssl' in req.get('error', '').lower():
+            issues['ssl_errors'].append(req)
+
+        # CORS errors
+        elif status == 0 and 'cors' in req.get('error', '').lower():
+            issues['cors_errors'].append(req)
+
+        # Rate limiting
+        elif status in [429, 503]:
+            issues['rate_limits'].append(req)
+
+    return issues
+
+# Debug network issues
+network_issues = debug_network_issues('data/db/browseruse/test/task_1/trace/task_trace.zip')
+
+for issue_type, requests in network_issues.items():
+    if requests:
+        print(f"{issue_type.replace('_', ' ').title()}: {len(requests)}")
+        for req in requests[:2]:  # Show first 2 requests
+            print(f"  - {req['url']} (Status: {req['status']})")
+```
+
+## Performance Analysis
+
+### Page Load Performance
+
+```python
+def analyze_page_performance(trace_path):
+    """Analyze page load performance from trace."""
+
+    analyzer = TraceAnalyzer(trace_path)
+
+    # Get timing data from trace
+    timing_data = {}
+    if 'trace' in analyzer.trace_data:
+        for entry in analyzer.trace_data['trace']:
+            event_name = entry.get('name')
+            if event_name in ['navigationStart', 'loadEventEnd', 'domContentLoadedEventEnd']:
+                timing_data[event_name] = entry.get('ts', 0) / 1000  # Convert to milliseconds
+
+    # Calculate performance metrics
+    metrics = {}
+    if 'navigationStart' in timing_data and 'loadEventEnd' in timing_data:
+        metrics['page_load_time'] = timing_data['loadEventEnd'] - timing_data['navigationStart']
+
+    if 'navigationStart' in timing_data and 'domContentLoadedEventEnd' in timing_data:
+        metrics['dom_ready_time'] = timing_data['domContentLoadedEventEnd'] - timing_data['navigationStart']
+
+    # Analyze resource loading
+    requests = analyzer.get_network_requests()
+    resource_analysis = {
+        'total_resources': len(requests),
+        'total_size': sum(r.get('size', 0) for r in requests),
+        'slow_resources': [r for r in requests if r.get('duration', 0) > 2000],
+        'large_resources': [r for r in requests if r.get('size', 0) > 500 * 1024]  # >500KB
+    }
+
+    return {
+        'timing_metrics': metrics,
+        'resource_analysis': resource_analysis
+    }
+
+# Analyze performance
+performance = analyze_page_performance('data/db/browseruse/test/task_1/trace/task_trace.zip')
+
+print("Performance Analysis:")
+print(f"Page load time: {performance['timing_metrics'].get('page_load_time', 'N/A')} ms")
+print(f"DOM ready time: {performance['timing_metrics'].get('dom_ready_time', 'N/A')} ms")
+print(f"Total resources: {performance['resource_analysis']['total_resources']}")
+print(f"Total size: {performance['resource_analysis']['total_size'] / 1024:.1f} KB")
+print(f"Slow resources: {len(performance['resource_analysis']['slow_resources'])}")
+print(f"Large resources: {len(performance['resource_analysis']['large_resources'])}")
+```
+
+### Resource Usage Analysis
+
+```python
+def analyze_resource_usage(trace_path):
+    """Analyze browser resource usage."""
+
+    analyzer = TraceAnalyzer(trace_path)
+
+    # Memory usage analysis
+    memory_stats = {
+        'js_heap_size': 0,
+        'dom_nodes': 0,
+        'event_listeners': 0
+    }
+
+    # CPU usage analysis (from timing data)
+    cpu_intensive_operations = []
+
+    if 'trace' in analyzer.trace_data:
+        for entry in analyzer.trace_data['trace']:
+            # Memory events
+            if entry.get('name') == 'UpdateCounters':
+                args = entry.get('args', {})
+                memory_stats['js_heap_size'] = args.get('jsHeapSizeUsed', 0)
+                memory_stats['dom_nodes'] = args.get('nodes', 0)
+                memory_stats['event_listeners'] = args.get('jsEventListeners', 0)
+
+            # CPU-intensive operations
+            if entry.get('dur', 0) > 100:  # Operations longer than 100ms
+                cpu_intensive_operations.append({
+                    'name': entry.get('name'),
+                    'duration': entry.get('dur') / 1000,  # Convert to ms
+                    'category': entry.get('cat')
+                })
+
+    return {
+        'memory_stats': memory_stats,
+        'cpu_intensive_operations': sorted(cpu_intensive_operations,
+                                         key=lambda x: x['duration'], reverse=True)[:10]
+    }
+
+# Analyze resource usage
+resource_usage = analyze_resource_usage('data/db/browseruse/test/task_1/trace/task_trace.zip')
+
+print("Resource Usage Analysis:")
+print(f"JS Heap Size: {resource_usage['memory_stats']['js_heap_size'] / 1024 / 1024:.1f} MB")
+print(f"DOM Nodes: {resource_usage['memory_stats']['dom_nodes']}")
+print(f"Event Listeners: {resource_usage['memory_stats']['event_listeners']}")
+
+print("\nTop CPU-intensive operations:")
+for op in resource_usage['cpu_intensive_operations'][:5]:
+    print(f"  {op['name']}: {op['duration']:.1f}ms")
+```
+
+## Trace Comparison
+
+### Comparing Multiple Traces
+
+```python
+def compare_traces(trace_paths, labels):
+    """Compare multiple trace files."""
+
+    comparison = {}
+
+    for i, trace_path in enumerate(trace_paths):
+        label = labels[i] if i < len(labels) else f"Trace {i+1}"
+
+        analyzer = TraceAnalyzer(trace_path)
+        requests = analyzer.get_network_requests()
+        errors = analyzer.get_javascript_errors()
+        performance = analyzer.get_performance_metrics()
+
+        comparison[label] = {
+            'total_requests': len(requests),
+            'failed_requests': sum(1 for r in requests if r['status'] >= 400),
+            'javascript_errors': len(errors),
+            'page_load_time': performance.get('page_load_time', 0),
+            'total_size': performance.get('total_size', 0)
+        }
+
+    return comparison
+
+# Compare successful vs failed runs
+comparison = compare_traces([
+    'data/db/browseruse/test/success_1/trace/test_trace.zip',
+    'data/db/browseruse/test/failure_1/trace/test_trace.zip'
+], ['Success', 'Failure'])
+
+print("Trace Comparison:")
+for label, metrics in comparison.items():
+    print(f"\n{label}:")
+    print(f"  Total requests: {metrics['total_requests']}")
+    print(f"  Failed requests: {metrics['failed_requests']}")
+    print(f"  JavaScript errors: {metrics['javascript_errors']}")
+    print(f"  Page load time: {metrics['page_load_time']} ms")
+    print(f"  Total size: {metrics['total_size'] / 1024:.1f} KB")
+```
+
+## Automated Trace Analysis
+
+### Batch Processing
+
+```python
+#!/usr/bin/env python3
+# batch_trace_analysis.py
+
+import glob
+import json
+import os
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+
+def analyze_single_trace(trace_path):
+    """Analyze a single trace file."""
+    try:
+        analyzer = TraceAnalyzer(trace_path)
+
+        # Extract path information
+        path_parts = Path(trace_path).parts
+        agent = path_parts[-4]
+        category = path_parts[-3]
+        test_run = path_parts[-2]
+
+        # Perform analysis
+        requests = analyzer.get_network_requests()
+        errors = analyzer.get_javascript_errors()
+        performance = analyzer.get_performance_metrics()
+
+        return {
+            'trace_path': trace_path,
+            'agent': agent,
+            'category': category,
+            'test_run': test_run,
+            'analysis': {
+                'total_requests': len(requests),
+                'failed_requests': sum(1 for r in requests if r['status'] >= 400),
+                'javascript_errors': len(errors),
+                'performance_metrics': performance
+            }
+        }
+
+    except Exception as e:
+        return {
+            'trace_path': trace_path,
+            'error': str(e)
+        }
+
+def batch_analyze_traces(base_path, max_workers=4):
+    """Analyze all trace files in parallel."""
+
+    # Find all trace files
+    trace_pattern = f"{base_path}/**/trace/*_trace.zip"
+    trace_files = glob.glob(trace_pattern, recursive=True)
+
+    print(f"Found {len(trace_files)} trace files to analyze")
+
+    # Process in parallel
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(analyze_single_trace, trace_file) for trace_file in trace_files]
+
+        for future in futures:
+            result = future.result()
+            results.append(result)
+
+    return results
+
+if __name__ == "__main__":
+    # Analyze all traces
+    results = batch_analyze_traces('data/db')
+
+    # Save results
+    with open('trace_analysis_results.json', 'w') as f:
+        json.dump(results, f, indent=2)
+
+    # Print summary
+    successful_analyses = [r for r in results if 'error' not in r]
+    failed_analyses = [r for r in results if 'error' in r]
+
+    print(f"\nAnalysis Summary:")
+    print(f"Successful: {len(successful_analyses)}")
+    print(f"Failed: {len(failed_analyses)}")
+
+    if successful_analyses:
+        avg_requests = sum(r['analysis']['total_requests'] for r in successful_analyses) / len(successful_analyses)
+        avg_errors = sum(r['analysis']['javascript_errors'] for r in successful_analyses) / len(successful_analyses)
+
+        print(f"Average requests per trace: {avg_requests:.1f}")
+        print(f"Average JS errors per trace: {avg_errors:.1f}")
+```
+
+## Trace-Based Debugging Workflow
+
+### Step-by-Step Debugging
+
+1. **Open the Trace**
+   ```bash
+   playwright show-trace data/db/browseruse/test/failed_task/trace/failed_task_trace.zip
+   ```
+
+2. **Identify the Failure Point**
+   - Look at the timeline for where actions stopped
+   - Check for red error indicators
+   - Examine the last successful action
+
+3. **Analyze Network Issues**
+   - Check for failed HTTP requests
+   - Look for CORS errors or timeouts
+   - Verify resource loading
+
+4. **Review JavaScript Errors**
+   - Check console for error messages
+   - Look for stack traces
+   - Identify error sources
+
+5. **Examine DOM State**
+   - Use DOM snapshots to see page state
+   - Check if expected elements exist
+   - Verify element visibility and interactability
+
+6. **Performance Investigation**
+   - Look for slow operations
+   - Check memory usage
+   - Identify resource bottlenecks
+
+### Common Debugging Scenarios
+
+<AccordionGroup>
+
+<Accordion title="Element Not Found">
+**Symptoms**: Actions fail with "element not found" errors
+
+**Debugging Steps**:
+1. Check DOM snapshot at failure point
+2. Verify element selector accuracy
+3. Look for dynamic content loading
+4. Check for iframe context issues
+</Accordion>
+
+<Accordion title="Network Timeouts">
+**Symptoms**: Page loads are slow or fail
+
+**Debugging Steps**:
+1. Check network tab for failed requests
+2. Look for DNS resolution issues
+3. Verify server response times
+4. Check for rate limiting
+</Accordion>
+
+<Accordion title="JavaScript Errors">
+**Symptoms**: Page functionality broken
+
+**Debugging Steps**:
+1. Review console logs for errors
+2. Check for missing dependencies
+3. Look for syntax errors
+4. Verify browser compatibility
+</Accordion>
+
+</AccordionGroup>
+
+## Next Steps
+
+<Card title="Database Analysis" icon="database" href="/output/database">
+  Correlate trace data with database actions
+</Card>
+
+<Card title="Video Analysis" icon="video" href="/output/video">
+  Combine trace debugging with video review
+</Card>
+
+<Card title="Custom Checkers" icon="code" href="/evaluation/checkers">
+  Use trace data in custom evaluation logic
+</Card>
