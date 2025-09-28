@@ -129,8 +129,8 @@
     }
   },
   "logo": {
-    "light": "/logo/liteagent-text.svg",
-    "dark": "/logo/liteagent-text.svg"
+    "light": "/logo/liteagent.svg",
+    "dark": "/logo/liteagent.svg"
   },
   "navbar": {
     "links": [
