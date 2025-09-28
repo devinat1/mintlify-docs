@@ -1,68 +1,114 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "LiteAgent Documentation",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#3B82F6",
+    "light": "#60A5FA",
+    "dark": "#1E40AF"
   },
   "favicon": "/favicon.svg",
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Getting Started",
             "pages": [
               "index",
+              "introduction",
               "quickstart",
-              "development"
+              "installation"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/overview",
+              "concepts/agents",
+              "concepts/dark-patterns",
+              "concepts/data-collection"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Setup & Configuration",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "setup/prerequisites",
+              "setup/docker",
+              "setup/local",
+              "setup/environment"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Running Tests",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "usage/cli",
+              "usage/prompts",
+              "usage/docker-compose",
+              "usage/parallel-execution"
+            ]
+          },
+          {
+            "group": "Output & Analysis",
+            "pages": [
+              "output/structure",
+              "output/database",
+              "output/video",
+              "output/traces"
+            ]
+          },
+          {
+            "group": "Evaluation Suite",
+            "pages": [
+              "evaluation/overview",
+              "evaluation/checkers",
+              "evaluation/metrics",
+              "evaluation/tables-figures"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Agents",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Supported Agents",
             "pages": [
-              "api-reference/introduction"
+              "agents/overview",
+              "agents/browseruse",
+              "agents/dobrowser",
+              "agents/multion",
+              "agents/agente",
+              "agents/skyvern",
+              "agents/webarena",
+              "agents/visualwebarena"
             ]
-          },
+          }
+        ]
+      },
+      {
+        "tab": "TrickyArena",
+        "groups": [
           {
-            "group": "Endpoint examples",
+            "group": "Safety Testing",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "trickyarena/overview",
+              "trickyarena/dark-patterns",
+              "trickyarena/test-sites"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Modules",
+            "pages": [
+              "api/collector",
+              "api/evaluation",
+              "api/web-automation"
             ]
           }
         ]
@@ -71,14 +117,14 @@
     "global": {
       "anchors": [
         {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
+          "anchor": "GitHub",
+          "href": "https://github.com/devinat1/agent-collector",
+          "icon": "github"
         },
         {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
+          "anchor": "TrickyArena Demo",
+          "href": "https://agenttrickydps.vercel.app/",
+          "icon": "globe"
         }
       ]
     }
@@ -90,14 +136,14 @@
   "navbar": {
     "links": [
       {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
+        "label": "GitHub",
+        "href": "https://github.com/devinat1/agent-collector"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
+      "label": "Try TrickyArena",
+      "href": "https://agenttrickydps.vercel.app/"
     }
   },
   "contextual": {
@@ -114,9 +160,7 @@
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "github": "https://github.com/devinat1/agent-collector"
     }
   }
 }

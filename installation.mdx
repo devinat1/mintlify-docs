@@ -1,0 +1,445 @@
+---
+title: "Installation Guide"
+description: "Detailed instructions for installing LiteAgent on various platforms"
+---
+
+This guide provides comprehensive installation instructions for LiteAgent on different platforms and configurations.
+
+## System Requirements
+
+### Minimum Requirements
+- **OS**: Ubuntu 22.04+ / macOS 12+ / Windows 10+ with WSL2
+- **RAM**: 8GB minimum, 16GB recommended
+- **Storage**: 20GB free space
+- **CPU**: 4 cores minimum, 8 cores recommended
+- **Network**: Stable internet connection for API calls
+
+### Software Prerequisites
+- **Git**: Version 2.0 or higher
+- **Python**: Version 3.11 (exactly - not 3.12+)
+- **Node.js**: Version 18+ (for TrickyArena websites)
+- **Docker**: Version 20.10+ (for containerized deployment)
+
+## Installation Methods
+
+<Tabs>
+
+<Tab title="Docker (Recommended)">
+
+### Step 1: Install Docker
+
+<AccordionGroup>
+<Accordion title="Ubuntu/Debian">
+```bash
+# Update package index
+sudo apt update
+
+# Install prerequisites
+sudo apt install apt-transport-https ca-certificates curl software-properties-common
+
+# Add Docker GPG key
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+
+# Add Docker repository
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker
+sudo apt update
+sudo apt install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# Add user to docker group
+sudo usermod -aG docker $USER
+newgrp docker
+```
+</Accordion>
+
+<Accordion title="macOS">
+```bash
+# Install Docker Desktop
+# Download from: https://www.docker.com/products/docker-desktop/
+
+# Or use Homebrew
+brew install --cask docker
+
+# Start Docker Desktop from Applications
+```
+</Accordion>
+
+<Accordion title="Windows (WSL2)">
+```powershell
+# Install WSL2 first
+wsl --install
+
+# Install Docker Desktop
+# Download from: https://www.docker.com/products/docker-desktop/
+
+# Enable WSL2 backend in Docker Desktop settings
+```
+</Accordion>
+</AccordionGroup>
+
+### Step 2: Clone Repository
+
+```bash
+git clone https://github.com/devinat1/agent-collector.git
+cd agent-collector
+git submodule update --init --recursive
+```
+
+### Step 3: Configure Environment
+
+```bash
+cp collector/.env.example collector/.env
+```
+
+Edit `collector/.env` with your API keys:
+```env
+# OpenAI (for BrowserUse)
+OPENAI_API_KEY=sk-...
+
+# Anthropic (for Agent E)
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Google (for Gemini models)
+GOOGLE_API_KEY=...
+GEMINI_API_KEY=...
+
+# MultiOn
+MULTION_API_KEY=...
+
+# DoBrowser
+DOBROWSER_API_KEY=...
+
+# Skyvern
+SKYVERN_API_KEY=...
+```
+
+### Step 4: Build Docker Images
+
+```bash
+# Build all agent images
+docker compose build
+
+# Or build specific agent
+docker compose build browseruse
+```
+
+### Step 5: Verify Installation
+
+```bash
+# Test with a simple prompt
+mkdir -p data/prompts/test
+echo -e "https://example.com\nClick the first link" > data/prompts/test/simple.txt
+
+# Run test
+docker compose up browseruse
+```
+
+</Tab>
+
+<Tab title="Local Development">
+
+### Step 1: Install Python Environment
+
+<AccordionGroup>
+<Accordion title="Using Conda (Recommended)">
+```bash
+# Install Miniconda
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh
+
+# Create environment
+conda create -n liteagent python=3.11
+conda activate liteagent
+```
+</Accordion>
+
+<Accordion title="Using venv">
+```bash
+# Install Python 3.11
+sudo apt update
+sudo apt install python3.11 python3.11-venv python3.11-dev
+
+# Create virtual environment
+python3.11 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+</Accordion>
+
+<Accordion title="Using pyenv">
+```bash
+# Install pyenv
+curl https://pyenv.run | bash
+
+# Install Python 3.11
+pyenv install 3.11.9
+pyenv local 3.11.9
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate
+```
+</Accordion>
+</AccordionGroup>
+
+### Step 2: Clone and Install Dependencies
+
+```bash
+# Clone repository
+git clone https://github.com/devinat1/agent-collector.git
+cd agent-collector
+git submodule update --init --recursive
+
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Install Playwright browsers
+pip install playwright
+playwright install
+playwright install-deps  # System dependencies
+```
+
+### Step 3: Configure Environment
+
+```bash
+cp collector/.env.example collector/.env
+# Edit collector/.env with your API keys
+```
+
+### Step 4: Set Up Browser Data (Optional)
+
+For agents that use browser extensions:
+
+```bash
+# Create browser data directories
+mkdir -p data/browser_data/dobrowser
+mkdir -p data/browser_data/browseruse
+
+# Launch Chrome with custom profile
+google-chrome --user-data-dir=$(pwd)/data/browser_data/dobrowser
+
+# Log into extensions and save state
+# Then copy the profile for each agent
+```
+
+### Step 5: Verify Installation
+
+```bash
+# Run a simple test
+./run.sh browseruse
+# Select test category when prompted
+```
+
+</Tab>
+
+<Tab title="Development Setup">
+
+### Complete Development Environment
+
+For contributing to LiteAgent or developing new agents:
+
+#### 1. Install All Prerequisites
+
+```bash
+# System packages
+sudo apt update
+sudo apt install -y \
+    build-essential \
+    curl \
+    wget \
+    git \
+    nodejs \
+    npm \
+    chromium-browser \
+    firefox
+
+# Python development tools
+pip install -r requirements-dev.txt
+pip install black flake8 mypy pytest
+```
+
+#### 2. Set Up Pre-commit Hooks
+
+```bash
+# Install pre-commit
+pip install pre-commit
+
+# Set up hooks
+pre-commit install
+```
+
+#### 3. Install TrickyArena Locally
+
+```bash
+cd sites/react-testbed
+npm install  # or yarn install
+npm run dev  # Start development server
+```
+
+#### 4. Configure IDE
+
+<AccordionGroup>
+<Accordion title="VS Code">
+Create `.vscode/settings.json`:
+```json
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python",
+  "python.linting.enabled": true,
+  "python.linting.flake8Enabled": true,
+  "python.formatting.provider": "black",
+  "editor.formatOnSave": true
+}
+```
+</Accordion>
+
+<Accordion title="PyCharm">
+1. Open project settings
+2. Set Python interpreter to virtual environment
+3. Enable Black formatter
+4. Configure run configurations for each agent
+</Accordion>
+</AccordionGroup>
+
+#### 5. Database Tools
+
+```bash
+# Install SQLite browser for database inspection
+sudo apt install sqlitebrowser
+
+# Or use command-line tools
+sudo apt install sqlite3
+```
+
+</Tab>
+
+</Tabs>
+
+## Agent-Specific Setup
+
+Some agents require additional configuration:
+
+### DoBrowser
+- Create a DoBrowser account at [dobrowser.com](https://dobrowser.com)
+- Install the Chrome extension
+- Log in with Google account
+- Save browser state as described above
+
+### Skyvern
+- Requires PostgreSQL for local deployment
+- Additional webhook server setup needed
+- See `collector/webhook_server_skyvern.py`
+
+### WebArena/VisualWebArena
+- Research agents with specific environment requirements
+- May need additional model downloads
+- Check respective submodule documentation
+
+## Troubleshooting
+
+<AccordionGroup>
+
+<Accordion title="Python version issues">
+If you encounter Python version conflicts:
+```bash
+# Check Python version
+python --version
+
+# Use pyenv to manage versions
+pyenv install 3.11.9
+pyenv local 3.11.9
+```
+</Accordion>
+
+<Accordion title="Docker permission denied">
+If you get permission errors with Docker:
+```bash
+# Add user to docker group
+sudo usermod -aG docker $USER
+
+# Restart session or run
+newgrp docker
+```
+</Accordion>
+
+<Accordion title="Playwright browser issues">
+If Playwright browsers fail to install:
+```bash
+# Install system dependencies
+playwright install-deps
+
+# Force reinstall browsers
+playwright install --force
+
+# For headless environments
+playwright install chromium
+```
+</Accordion>
+
+<Accordion title="Submodule initialization failed">
+If submodules don't initialize properly:
+```bash
+# Force update submodules
+git submodule update --init --recursive --force
+
+# Or clone with submodules
+git clone --recurse-submodules https://github.com/devinat1/agent-collector.git
+```
+</Accordion>
+
+<Accordion title="API key errors">
+Ensure API keys are properly formatted:
+- No quotes in .env file
+- No trailing spaces
+- Correct key format for each service
+- Check key permissions/quotas
+</Accordion>
+
+</AccordionGroup>
+
+## Platform-Specific Notes
+
+### Ubuntu 24.04 LTS
+- Tested and fully supported
+- All installation methods work
+- Recommended for production use
+
+### macOS (Apple Silicon)
+- Use Docker Desktop with ARM64 support
+- Some Python packages may need Rosetta 2
+- Browser automation works natively
+
+### Windows
+- WSL2 strongly recommended
+- Native Windows support limited
+- Use Docker Desktop with WSL2 backend
+
+### Cloud Deployment
+- Works on AWS EC2, Google Cloud, Azure
+- Use headless browser configurations
+- Ensure sufficient resources (see requirements)
+
+## Next Steps
+
+<Card
+  title="Quick Start"
+  icon="rocket"
+  href="/quickstart"
+>
+  Run your first test with LiteAgent
+</Card>
+
+<Card
+  title="Environment Configuration"
+  icon="gear"
+  href="/setup/environment"
+>
+  Configure API keys and settings
+</Card>
+
+<Card
+  title="Docker Setup"
+  icon="docker"
+  href="/setup/docker"
+>
+  Advanced Docker configuration options
+</Card>

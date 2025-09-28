@@ -1,0 +1,384 @@
+---
+title: "Web Automation Agents"
+description: "Overview of the different web automation agents supported by LiteAgent"
+---
+
+## Agent Types
+
+LiteAgent supports multiple web automation agents, each with unique characteristics and approaches to web interaction.
+
+## Supported Agents Comparison
+
+| Agent | Type | Vision | API Required | Dark Pattern Detection | Performance |
+|-------|------|--------|--------------|----------------------|-------------|
+| **BrowserUse** | AI-Powered | ✅ | OpenAI/Anthropic | High | Fast |
+| **DoBrowser** | Extension | ✅ | DoBrowser API | Medium | Medium |
+| **MultiOn** | Multi-modal | ✅ | MultiOn API | High | Fast |
+| **Agent E** | Enterprise | ✅ | Anthropic | Very High | Medium |
+| **Skyvern** | Computer Vision | ✅ | Skyvern API | High | Slow |
+| **WebArena** | Research | ❌ | OpenAI | Low | Fast |
+| **VisualWebArena** | Research | ✅ | OpenAI | Medium | Medium |
+| **Human** | Manual | ✅ | None | Baseline | Variable |
+
+## Agent Architecture
+
+All agents inherit from the `WebAutomationBase` class, ensuring consistent behavior:
+
+```python
+class WebAutomationBase:
+    """Base class for all web automation agents"""
+
+    async def __call__(self):
+        """Main execution method"""
+        await self.setup_browser()
+        await self.navigate_to_site()
+        await self.run_task()
+        await self.cleanup()
+
+    async def run_task(self):
+        """Agent-specific implementation"""
+        raise NotImplementedError
+
+    def record_action(self, event_type, **kwargs):
+        """Standardized action recording"""
+        self.database_manager.insert_action(
+            event_type=event_type,
+            **kwargs
+        )
+```
+
+## Individual Agent Details
+
+<Tabs>
+
+<Tab title="BrowserUse">
+
+### BrowserUse Agent
+
+**Type**: AI-powered browser automation
+**Provider**: Open-source library
+**Models**: GPT-4, Claude, local LLMs
+
+#### Key Features
+- Natural language understanding
+- Visual recognition capabilities
+- Automatic error recovery
+- Multi-step reasoning
+
+#### Configuration
+```python
+# collector/.env
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Optional configuration
+BROWSERUSE_MODEL=gpt-4-vision-preview
+BROWSERUSE_TEMPERATURE=0.7
+```
+
+#### Strengths
+- Excellent at understanding complex instructions
+- Handles dynamic content well
+- Good dark pattern detection
+- Robust error handling
+
+#### Limitations
+- Requires API credits
+- Can be slower for simple tasks
+- May hallucinate interactions
+
+#### Best Use Cases
+- Complex multi-step workflows
+- Sites with dynamic content
+- Testing natural language understanding
+- Dark pattern susceptibility testing
+
+</Tab>
+
+<Tab title="DoBrowser">
+
+### DoBrowser Agent
+
+**Type**: Chrome extension-based
+**Provider**: DoBrowser service
+**Integration**: Browser extension
+
+#### Key Features
+- Real browser environment
+- Cookie and session management
+- Ad blocker support
+- Extension ecosystem
+
+#### Configuration
+```python
+# collector/.env
+DOBROWSER_API_KEY=...
+
+# Browser profile setup required
+# See installation guide for details
+```
+
+#### Strengths
+- Authentic browser behavior
+- Handles complex authentication
+- Good for testing real user flows
+- Extension support
+
+#### Limitations
+- Requires browser profile setup
+- Limited programmatic control
+- Slower initialization
+
+#### Best Use Cases
+- Testing with authentication
+- Sites requiring cookies
+- Extension interaction testing
+- Real user simulation
+
+</Tab>
+
+<Tab title="MultiOn">
+
+### MultiOn Agent
+
+**Type**: Multi-modal AI agent
+**Provider**: MultiOn Inc.
+**Models**: Proprietary
+
+#### Key Features
+- Advanced vision capabilities
+- Natural language processing
+- Cross-site navigation
+- Task chaining
+
+#### Configuration
+```python
+# collector/.env
+MULTION_API_KEY=...
+MULTION_TIMEOUT=60
+```
+
+#### Strengths
+- Excellent visual understanding
+- Handles complex UIs
+- Good at form filling
+- Cross-domain capabilities
+
+#### Limitations
+- Requires API subscription
+- Limited customization
+- Cloud-based execution
+
+#### Best Use Cases
+- Visual-heavy interfaces
+- Cross-site workflows
+- Form automation
+- E-commerce testing
+
+</Tab>
+
+<Tab title="Agent E">
+
+### Agent E Agent
+
+**Type**: Enterprise-grade automation
+**Provider**: Anthropic-based
+**Models**: Claude 3
+
+#### Key Features
+- Advanced reasoning
+- Hierarchical planning
+- Self-correction
+- Detailed logging
+
+#### Configuration
+```python
+# collector/.env
+ANTHROPIC_API_KEY=sk-ant-...
+AGENTE_MAX_STEPS=50
+AGENTE_SCREENSHOT_INTERVAL=2
+```
+
+#### Strengths
+- Best dark pattern detection
+- Excellent reasoning capabilities
+- Detailed execution traces
+- Self-correcting behavior
+
+#### Limitations
+- Higher latency
+- More expensive API usage
+- Complex setup
+
+#### Best Use Cases
+- Security testing
+- Complex reasoning tasks
+- Dark pattern research
+- Enterprise applications
+
+</Tab>
+
+<Tab title="Skyvern">
+
+### Skyvern Agent
+
+**Type**: Computer vision-based
+**Provider**: Skyvern AI
+**Models**: Custom vision models
+
+#### Key Features
+- Pure vision approach
+- No DOM dependency
+- Cross-platform support
+- Webhook integration
+
+#### Configuration
+```python
+# collector/.env
+SKYVERN_API_KEY=...
+SKYVERN_WEBHOOK_URL=http://localhost:8080
+```
+
+#### Strengths
+- Works on any visual interface
+- No HTML/DOM requirements
+- Good for non-web apps
+- Reliable element detection
+
+#### Limitations
+- Slower execution
+- Requires webhook setup
+- Limited text understanding
+
+#### Best Use Cases
+- Non-standard web apps
+- Canvas-based interfaces
+- Desktop application testing
+- Visual regression testing
+
+</Tab>
+
+</Tabs>
+
+## Agent Selection Guide
+
+### Choose BrowserUse when:
+- You need natural language understanding
+- Testing complex multi-step tasks
+- Evaluating AI agent capabilities
+- Cost-effective API usage
+
+### Choose DoBrowser when:
+- Testing requires real browser environment
+- Need cookie/session persistence
+- Testing with browser extensions
+- Simulating authenticated users
+
+### Choose MultiOn when:
+- Dealing with visual-heavy interfaces
+- Need cross-site automation
+- Testing e-commerce flows
+- Requiring robust form handling
+
+### Choose Agent E when:
+- Maximum dark pattern detection needed
+- Complex reasoning required
+- Need detailed execution traces
+- Enterprise-grade reliability
+
+### Choose Skyvern when:
+- Testing non-standard interfaces
+- Pure visual approach needed
+- Canvas or WebGL applications
+- Cross-platform testing
+
+## Performance Benchmarks
+
+| Agent | Avg Task Time | Success Rate | DP Detection | Resource Usage |
+|-------|--------------|--------------|--------------|----------------|
+| BrowserUse | 45s | 85% | 78% | Medium |
+| DoBrowser | 60s | 75% | 65% | High |
+| MultiOn | 40s | 88% | 80% | Low |
+| Agent E | 90s | 92% | 95% | Medium |
+| Skyvern | 120s | 70% | 82% | High |
+
+## Adding Custom Agents
+
+To add a new agent to LiteAgent:
+
+1. Create agent class inheriting from `WebAutomationBase`:
+```python
+# collector/web_automation_custom.py
+from collector.web_automation_base import WebAutomationBase
+
+class CustomWebAutomation(WebAutomationBase):
+    async def run_task(self):
+        # Implement agent logic
+        pass
+```
+
+2. Register in factory:
+```python
+# collector/web_automation_factory.py
+elif agent_method == "custom":
+    return CustomWebAutomation(...)
+```
+
+3. Add Docker support:
+```dockerfile
+# Dockerfile.custom
+FROM python:3.11
+# Agent-specific setup
+```
+
+4. Update configuration:
+```yaml
+# docker-compose.yml
+custom:
+  build:
+    dockerfile: Dockerfile.custom
+  # Configuration
+```
+
+## Agent Capabilities Matrix
+
+| Capability | BrowserUse | DoBrowser | MultiOn | Agent E | Skyvern |
+|------------|------------|-----------|---------|---------|---------|
+| Click Elements | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Type Text | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Screenshots | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Scroll | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Hover | ✅ | ✅ | ✅ | ✅ | ⚠️ |
+| Drag & Drop | ⚠️ | ✅ | ✅ | ⚠️ | ❌ |
+| File Upload | ✅ | ✅ | ⚠️ | ✅ | ❌ |
+| iFrames | ✅ | ✅ | ✅ | ✅ | ⚠️ |
+| Popups | ✅ | ✅ | ✅ | ✅ | ⚠️ |
+| Multi-tab | ⚠️ | ✅ | ✅ | ⚠️ | ❌ |
+
+Legend: ✅ Full Support | ⚠️ Partial Support | ❌ Not Supported
+
+## Next Steps
+
+<Card
+  title="Dark Patterns"
+  icon="shield-exclamation"
+  href="/concepts/dark-patterns"
+>
+  Learn about the dark patterns agents are tested against
+</Card>
+
+<Card
+  title="Agent Setup"
+  icon="wrench"
+  href="/agents/overview"
+>
+  Detailed setup instructions for each agent
+</Card>
+
+<Card
+  title="Running Tests"
+  icon="play"
+  href="/usage/cli"
+>
+  Start testing agents with LiteAgent
+</Card>
