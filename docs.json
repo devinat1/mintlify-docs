@@ -129,8 +129,8 @@
     }
   },
   "logo": {
-    "light": "favicon.ico",
-    "dark": "favicon.ico"
+    "light": "/logo/liteagent-text.svg",
+    "dark": "/logo/liteagent-text.svg"
   },
   "navbar": {
     "links": [
