@@ -7,7 +7,7 @@
     "light": "#60A5FA",
     "dark": "#1E40AF"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "/favicon.ico",
   "navigation": {
     "tabs": [
       {
@@ -63,8 +63,7 @@
             "pages": [
               "evaluation/overview",
               "evaluation/checkers",
-              "evaluation/metrics",
-              "evaluation/tables-figures"
+              "evaluation/metrics"
             ]
           }
         ]
