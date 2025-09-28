@@ -487,7 +487,10 @@ jobs:
       - name: Set up environment
         run: |
           cp collector/.env.example collector/.env
-          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> collector/.env
+          # Add API keys from GitHub secrets
+          echo "OPENAI_API_KEY=$OPENAI_SECRET" >> collector/.env
+        env:
+          OPENAI_SECRET: '${{ secrets.OPENAI_API_KEY }}'
 
       - name: Run tests
         run: |

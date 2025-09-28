@@ -251,10 +251,10 @@ while true; do
     echo "=== $(date) ==="
 
     # Docker stats
-    docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
+    docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}'
 
     # System resources
-    echo "System CPU: $(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)%"
+    echo "System CPU: $(top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1)%"
     echo "System RAM: $(free | grep Mem | awk '{printf("%.1f%%", $3/$2 * 100.0)}')"
 
     echo "---"
@@ -477,7 +477,7 @@ cleanup() {
     docker compose down
 
     # Kill background processes
-    pkill -f "run.sh"
+    pkill -f 'run.sh'
 
     # Clean up temporary files
     rm -f /tmp/liteagent_*.tmp
