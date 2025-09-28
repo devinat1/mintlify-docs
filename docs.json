@@ -129,8 +129,8 @@
     }
   },
   "logo": {
-    "light": "/logo/liteagent.svg",
-    "dark": "/logo/liteagent.svg",
+    "light": "/logo/liteagent-text-large.svg",
+    "dark": "/logo/liteagent-text-large.svg",
     "height": 72
   },
   "navbar": {
