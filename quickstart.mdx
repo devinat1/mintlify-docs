@@ -3,15 +3,11 @@ title: "Quick Start"
 description: "Get LiteAgent up and running in 5 minutes"
 ---
 
-This guide will help you quickly set up LiteAgent and run your first test to evaluate a web agent against dark patterns.
-
 ## Prerequisites
 
-Before starting, ensure you have:
-
-- Git installed on your system
+- Git
 - Docker and Docker Compose (recommended) OR Python 3.11+
-- API keys for the agent you want to test (e.g., OpenAI for BrowserUse)
+- API keys for your agent (e.g., OpenAI for BrowserUse)
 
 ## Quick Setup with Docker
 
@@ -66,77 +62,31 @@ command: ["bash", "-c", "./run.sh browseruse --category quickstart --virtual --t
 
 </Steps>
 
-## Quick Setup Without Docker
+## Alternative: Setup Without Docker
 
-<Steps titleSize="h3">
+If not using Docker, follow the same clone and environment setup, then:
 
-<Step title="Clone and Setup">
-```bash
-git clone https://github.com/devinat1/agent-collector.git
-cd agent-collector
-git submodule update --init --recursive
-```
-</Step>
-
-<Step title="Create Python Environment">
 ```bash
 conda create -n liteagent python=3.11
 conda activate liteagent
 pip install -r requirements.txt
-pip install playwright
-playwright install
-```
-</Step>
-
-<Step title="Configure Environment">
-```bash
-cp collector/.env.example collector/.env
-# Edit collector/.env with your API keys
-```
-</Step>
-
-<Step title="Run Test">
-```bash
-./run.sh browseruse
-# Select "quickstart" when prompted for category
-```
-</Step>
-
-</Steps>
-
-## Understanding the Output
-
-After running a test, LiteAgent creates a structured output directory:
-
-```
-data/db/
-└── browseruse/
-    └── quickstart/
-        └── test_1/
-            ├── test.db          # SQLite database with interactions
-            ├── video/           # Screen recording
-            ├── html/            # HTML snapshots
-            ├── rrweb/           # Session replay data
-            └── trace/           # Debug traces
+pip install playwright && playwright install
+./run.sh browseruse  # Select "quickstart" when prompted
 ```
 
-## Viewing Results
+## Output Structure
 
-### Check the Database
-```bash
-sqlite3 data/db/browseruse/quickstart/test_1/test.db
-sqlite> SELECT * FROM test;
+```
+data/db/browseruse/quickstart/test_1/
+├── test.db          # SQLite database
+├── video/test.mp4   # Screen recording
+├── html/            # HTML snapshots
+├── rrweb/           # Session replay
+└── trace/           # Debug traces
 ```
 
-### Watch the Video
-Open `data/db/browseruse/quickstart/test_1/video/test.mp4` to see the agent's behavior.
-
-### View rrweb Recording
-```bash
-cd data/db/browseruse/quickstart/test_1/rrweb/
-python test_serve_rrweb_viewer.py
-# Open http://localhost:8000 in your browser
-```
+View video: `data/db/browseruse/quickstart/test_1/video/test.mp4`
+View database: `sqlite3 data/db/browseruse/quickstart/test_1/test.db`
 
 ## Testing with Dark Patterns
 
@@ -162,34 +112,15 @@ Complete a purchase for any laptop
 
 ## Running Multiple Tests
 
-Create multiple prompt files in your directory:
-```
-data/prompts/my_tests/
-├── test1.txt
-├── test2.txt
-└── test3.txt
-```
-
-Run all tests:
+Place multiple prompt files in a directory and run:
 ```bash
-./run.sh browseruse
-# Select "my_tests" category
+./run.sh browseruse  # Select your category
 ```
 
-## Parallel Execution
-
-Use Docker Compose replicas for parallel execution:
-
+For parallel execution with Docker:
 ```yaml
-browseruse:
-  # ... other config ...
-  deploy:
-    replicas: 3  # Run 3 tests in parallel
-```
-
-Then run:
-```bash
-docker compose up --build browseruse
+deploy:
+  replicas: 3  # Run 3 tests in parallel
 ```
 
 ## Evaluating Results
@@ -203,37 +134,6 @@ python -m evaluation.data_transforms.transform_custom_data
 
 View results in `numbers/custom_comparison_results.csv`.
 
-## Common Issues
-
-<AccordionGroup>
-
-<Accordion title="Agent timeouts">
-Increase the timeout in the command:
-```bash
-./run.sh browseruse --timeout 300
-```
-</Accordion>
-
-<Accordion title="Missing API keys">
-Ensure all required API keys are set in `collector/.env`. Check the agent-specific documentation for required keys.
-</Accordion>
-
-<Accordion title="Docker build errors">
-Make sure Docker is running and you have sufficient disk space:
-```bash
-docker system prune -a
-docker compose build --no-cache
-```
-</Accordion>
-
-<Accordion title="Submodule issues">
-If submodules are not initialized:
-```bash
-git submodule update --init --recursive --force
-```
-</Accordion>
-
-</AccordionGroup>
 
 ## Next Steps
 

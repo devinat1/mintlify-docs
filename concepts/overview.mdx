@@ -5,7 +5,7 @@ description: "Understanding LiteAgent's architecture and design principles"
 
 ## System Architecture
 
-LiteAgent follows a modular architecture designed for extensibility, scalability, and comprehensive data collection.
+LiteAgent uses a modular architecture for extensibility and scalability.
 
 ```mermaid
 graph TB
@@ -62,54 +62,20 @@ Key files:
 
 ### 2. Web Automation Agents
 
-Each agent inherits from `WebAutomationBase` and implements specific automation logic:
-
-```python
-class WebAutomationBase:
-    def __init__(self, site, task, agent_method, ...):
-        # Common initialization
-
-    async def run_task(self):
-        # Agent-specific implementation
-
-    def record_action(self, event_type, ...):
-        # Standardized data recording
-```
+Each agent inherits from `WebAutomationBase` and implements specific automation logic through standardized methods for task execution and data recording.
 
 ### 3. Data Collection System
 
-LiteAgent captures multiple types of data for comprehensive analysis:
-
-#### Database Schema
-```sql
-CREATE TABLE actions (
-    id INTEGER PRIMARY KEY,
-    event_type VARCHAR(50),
-    xpath VARCHAR(250),
-    class_name VARCHAR(250),
-    element_id VARCHAR(250),
-    input_value VARCHAR(250),
-    url VARCHAR(500),
-    additional_info VARCHAR(500),
-    time_since_last_action FLOAT
-);
-```
-
-#### Data Types Collected
+LiteAgent captures:
 - **Interaction Events**: Clicks, typing, navigation
 - **Visual Data**: Screenshots, video recordings
 - **DOM Snapshots**: HTML at each interaction
-- **Session Replay**: rrweb events for reconstruction
+- **Session Replay**: rrweb events
 - **Performance Metrics**: Timing and resource usage
 
 ### 4. Evaluation System
 
-The evaluation system analyzes collected data to determine:
-
-- Task completion success
-- Dark pattern susceptibility
-- Performance metrics
-- Behavioral patterns
+Analyzes data for task completion, dark pattern susceptibility, and performance metrics.
 
 ## Design Principles
 
@@ -139,140 +105,38 @@ Every test can be replayed:
 
 ## Data Flow
 
-<Steps>
-
-<Step title="Prompt Creation">
-User creates prompt files specifying:
-- Target URL (with optional dark patterns)
-- Task to perform
-- Expected outcomes
-</Step>
-
-<Step title="Agent Execution">
-Collector orchestrates:
-- Browser launch
-- Navigation to target
-- Task execution
-- Data recording
-</Step>
-
-<Step title="Data Storage">
-Multiple formats captured:
-- SQLite database for queries
-- Video for visual review
-- HTML for state analysis
-- rrweb for interactive replay
-</Step>
-
-<Step title="Evaluation">
-Automated analysis:
-- Task completion checking
-- Dark pattern detection
-- Metric calculation
-- Report generation
-</Step>
-
-</Steps>
+1. **Prompt Creation**: URL, task, and expected outcomes
+2. **Agent Execution**: Browser launch, navigation, and data recording
+3. **Data Storage**: SQLite, video, HTML snapshots, rrweb events
+4. **Evaluation**: Task checking, dark pattern detection, metrics
 
 ## Parallel Execution
 
-LiteAgent supports parallel execution for scalability:
-
-```python
-# Using asyncio for concurrent tasks
-async def run_parallel_tests(agents, prompts):
-    semaphore = asyncio.Semaphore(MAX_CONCURRENT)
-    tasks = []
-
-    for agent in agents:
-        for prompt in prompts:
-            task = run_with_semaphore(agent, prompt, semaphore)
-            tasks.append(task)
-
-    await asyncio.gather(*tasks)
-```
-
-Docker Compose enables easy parallelization:
-```yaml
-services:
-  browseruse:
-    deploy:
-      replicas: 5  # Run 5 instances
-```
+LiteAgent supports concurrent testing through asyncio and Docker Compose replicas for running multiple agent instances simultaneously.
 
 ## Error Handling
 
-Robust error handling ensures data integrity:
+- **Timeouts**: Configurable per task with graceful shutdown
+- **Recovery**: Automatic retries and state preservation
+- **Data Integrity**: Atomic operations and validation
 
-### Timeout Management
-- Configurable timeouts per task
-- Graceful shutdown on timeout
-- Partial data preservation
+## Security
 
-### Recovery Mechanisms
-- Automatic retry logic
-- State preservation on failure
-- Detailed error logging
+- **Sandboxing**: Isolated browser profiles and limited file access
+- **API Keys**: Environment-based configuration, no hardcoded credentials
+- **Privacy**: Local storage by default, user-controlled sharing
 
-### Data Consistency
-- Atomic database operations
-- Checkpoint-based recovery
-- Validation before storage
+## Performance
 
-## Security Considerations
+- **Resources**: Browser pooling, memory limits, CPU throttling
+- **Caching**: Browser state and prompt caching
+- **Monitoring**: Real-time progress and resource tracking
 
-LiteAgent implements several security measures:
+## Integration
 
-### Sandboxing
-- Isolated browser profiles
-- Separate data directories
-- Limited file system access
-
-### API Key Management
-- Environment-based configuration
-- No hardcoded credentials
-- Secure key storage
-
-### Data Privacy
-- Local data storage by default
-- No automatic uploads
-- User-controlled sharing
-
-## Performance Optimization
-
-### Resource Management
-- Browser instance pooling
-- Memory limit enforcement
-- CPU throttling options
-
-### Caching
-- Browser state caching
-- Compiled prompt caching
-- Result deduplication
-
-### Monitoring
-- Real-time progress tracking
-- Resource usage metrics
-- Performance profiling
-
-## Integration Points
-
-LiteAgent provides multiple integration options:
-
-### API Integration
-- RESTful endpoints for remote execution
-- Webhook callbacks for results
-- Streaming data export
-
-### CI/CD Integration
-- Docker-based deployment
-- Command-line interface
-- Exit codes for automation
-
-### Data Export
-- CSV for spreadsheets
-- JSON for APIs
-- SQLite for analysis tools
+- **API**: REST endpoints, webhooks, streaming export
+- **CI/CD**: Docker deployment, CLI, automation-friendly exit codes
+- **Export**: CSV, JSON, SQLite formats
 
 ## Next Steps
 

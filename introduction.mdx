@@ -5,44 +5,14 @@ description: "Understanding the purpose and capabilities of the LiteAgent framew
 
 ## Overview
 
-LiteAgent is a comprehensive testing and evaluation framework specifically designed to assess the safety and robustness of web automation agents when they encounter deceptive user interface patterns, commonly known as dark patterns.
+LiteAgent tests web automation agents against dark patterns—deceptive UI designs that manipulate users. As AI agents automate more online tasks, they're vulnerable to these same tricks that can cause unintended actions, exploited behaviors, and task failures.
 
-## The Problem
+## Key Features
 
-As AI-powered web agents become more prevalent in automating online tasks, they face the same manipulative design patterns that affect human users—and sometimes they're even more susceptible. Dark patterns can:
-
-- Trick agents into unintended actions
-- Manipulate decision-making processes
-- Exploit agent behaviors for malicious purposes
-- Cause agents to fail tasks or produce incorrect results
-
-## How LiteAgent Helps
-
-LiteAgent provides a controlled testing environment where you can:
-
-### 1. Test Multiple Agents
-Evaluate different web automation agents using the same test scenarios, enabling direct comparison of their resilience to dark patterns.
-
-### 2. Measure Performance
-Track detailed metrics including:
-- **Task Success Rate (TSR)**: How often agents complete intended tasks
-- **Dark Pattern Susceptibility Rate (DPSR)**: How often agents fall for deceptive patterns
-- **Confusion Matrix**: Detailed breakdown of success/failure scenarios
-
-### 3. Collect Comprehensive Data
-For each test run, LiteAgent captures:
-- Complete interaction logs in SQLite databases
-- Video recordings of agent behavior
-- HTML snapshots at each step
-- rrweb session recordings for playback
-- Detailed traces for debugging
-
-### 4. Automate Evaluation
-Built-in evaluation suite automatically:
-- Validates task completion
-- Detects dark pattern interactions
-- Generates statistical reports
-- Creates visualizations of results
+- **Multi-agent testing**: Compare different agents using standardized test scenarios
+- **Performance metrics**: Task Success Rate (TSR), Dark Pattern Susceptibility Rate (DPSR), and confusion matrices
+- **Data collection**: SQLite logs, video recordings, HTML snapshots, and rrweb sessions
+- **Automated evaluation**: Task validation, dark pattern detection, and statistical reporting
 
 ## Architecture Overview
 
@@ -76,47 +46,32 @@ LiteAgent consists of three main components:
 
 ## Supported Dark Patterns
 
-LiteAgent tests agents against various deceptive patterns including:
+LiteAgent tests against common deceptive patterns:
+- **Bait and Switch** - Promising one outcome, delivering another
+- **Disguised Ads** - Ads masquerading as content
+- **Hidden Costs** - Charges revealed only at checkout
+- **Roach Motel** - Easy entry, difficult exit
+- **Sneak into Basket** - Adding items without consent
 
-- **Bait and Switch**: Promising one outcome but delivering another
-- **Disguised Ads**: Advertisements disguised as content or navigation
-- **Forced Continuity**: Making it difficult to cancel subscriptions
-- **Hidden Costs**: Revealing additional charges only at final steps
-- **Misdirection**: Using visual design to direct attention away from important information
-- **Price Comparison Prevention**: Making it difficult to compare prices
-- **Roach Motel**: Easy to get into a situation, hard to get out
-- **Sneak into Basket**: Adding additional items without clear consent
-
-## Use Cases
-
-LiteAgent is valuable for:
+## Who Uses LiteAgent
 
 <Columns cols={2}>
   <Card title="Researchers">
-    Study agent behavior and develop more robust automation techniques
+    Study agent behavior and develop robust techniques
   </Card>
 
   <Card title="Developers">
-    Test and improve web automation agents before deployment
+    Test agents before deployment
   </Card>
 
   <Card title="Security Teams">
-    Assess vulnerabilities in automated systems
+    Assess automated system vulnerabilities
   </Card>
 
   <Card title="QA Engineers">
-    Validate agent behavior across different scenarios
+    Validate agent behavior across scenarios
   </Card>
 </Columns>
-
-## Key Benefits
-
-- **Standardized Testing**: Consistent test environment across all agents
-- **Comprehensive Metrics**: Detailed performance and safety measurements
-- **Extensible Framework**: Easy to add new agents or test scenarios
-- **Open Source**: Community-driven development and transparency
-- **Docker Support**: Easy deployment and parallel execution
-- **Rich Data Collection**: Multiple formats for analysis and debugging
 
 ## Next Steps
 
