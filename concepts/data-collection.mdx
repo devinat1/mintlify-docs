@@ -49,11 +49,13 @@ class ActionEvent:
 ### 2. Visual Data
 
 #### Screenshots
+
 - Captured before/after major actions
 - Full page and viewport captures
 - PNG format with timestamps
 
 #### Video Recording
+
 - Complete session recording
 - MP4 format for easy playback
 - Synchronized with event timestamps
@@ -61,6 +63,7 @@ class ActionEvent:
 ### 3. DOM Snapshots
 
 HTML captures at key moments:
+
 ```python
 # Captured at:
 - Initial page load
@@ -72,6 +75,7 @@ HTML captures at key moments:
 ### 4. Session Replay (rrweb)
 
 Complete session reconstruction data:
+
 ```javascript
 // rrweb event types
 {
@@ -87,6 +91,7 @@ Complete session reconstruction data:
 ### 5. Performance Metrics
 
 Resource and timing data:
+
 ```python
 {
     "page_load_time": 2.34,
@@ -255,218 +260,24 @@ for row in cursor.fetchall():
     print(f"Clicked: {row[1]} after {row[3]}s")
 ```
 
-### 2. Pandas Analysis
-
-```python
-import pandas as pd
-
-# Load into DataFrame
-df = pd.read_sql_query(
-    "SELECT * FROM actions",
-    conn
-)
-
-# Analysis
-click_count = df[df['event_type'] == 'click'].shape[0]
-avg_time = df['time_since_last_action'].mean()
-unique_pages = df['url'].nunique()
-```
-
 ### 3. Video Playback
 
-```python
-import cv2
-
-# Open video
-cap = cv2.VideoCapture('data/db/browseruse/test/task_1/video/task.mp4')
-
-# Play video
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
-    cv2.imshow('Agent Recording', frame)
-    if cv2.waitKey(25) & 0xFF == ord('q'):
-        break
-```
+Each run-through creates an MP4 recording.
 
 ### 4. rrweb Replay
 
-```python
-# Start local server
-cd data/db/browseruse/test/task_1/rrweb/
-python serve.py
-
-# Open browser to http://localhost:8000
-# Interactive replay with timeline controls
-```
-
-## Data Privacy & Security
-
-### Sensitive Data Handling
-
-```python
-# Masking sensitive information
-SENSITIVE_FIELDS = ['password', 'credit_card', 'ssn']
-
-def mask_input_value(field_name, value):
-    if any(s in field_name.lower() for s in SENSITIVE_FIELDS):
-        return '*' * len(value)
-    return value
-```
-
-### Data Retention
-
-- Local storage by default
-- No automatic uploads
-- User-controlled sharing
-- Configurable retention periods
-
-### Anonymization
-
-```python
-def anonymize_data(db_path):
-    """Remove identifying information"""
-    conn = sqlite3.connect(db_path)
-
-    # Anonymize URLs
-    conn.execute("""
-        UPDATE actions
-        SET url = regexp_replace(url, 'user=\w+', 'user=REDACTED')
-    """)
-
-    # Remove personal data
-    conn.execute("""
-        UPDATE actions
-        SET input_value = 'REDACTED'
-        WHERE xpath LIKE '%personal%'
-    """)
-```
-
-## Performance Considerations
-
-### Storage Optimization
-
-```python
-# Compression for large datasets
-import gzip
-import json
-
-def compress_rrweb_events(events):
-    json_str = json.dumps(events)
-    compressed = gzip.compress(json_str.encode())
-
-    # 70% size reduction typical
-    return compressed
-```
-
-### Batch Processing
-
-```python
-# Batch insert for performance
-def batch_insert_actions(actions, batch_size=100):
-    for i in range(0, len(actions), batch_size):
-        batch = actions[i:i+batch_size]
-        cursor.executemany(
-            "INSERT INTO actions VALUES (?,?,?,?,...)",
-            batch
-        )
-        conn.commit()
-```
-
-### Selective Recording
-
-```yaml
-# Configuration options
-recording:
-  screenshots: true
-  video: true
-  html_snapshots: true
-  rrweb: false  # Disable if not needed
-  trace: false  # Disable for production
-```
-
-## Data Export Formats
-
-### CSV Export
-
-```python
-# Export to CSV for analysis
-df.to_csv('agent_interactions.csv', index=False)
-```
-
-### JSON Export
-
-```python
-# Export to JSON for APIs
-data = {
-    'agent': 'browseruse',
-    'task': 'Purchase laptop',
-    'actions': df.to_dict('records')
-}
-json.dump(data, open('results.json', 'w'))
-```
-
-### Parquet Export
-
-```python
-# Efficient columnar format
-df.to_parquet('agent_data.parquet', compression='snappy')
-```
-
-## Quality Assurance
-
-### Data Validation
-
-```python
-def validate_action_data(action):
-    """Ensure data quality"""
-    assert action['event_type'] in VALID_EVENT_TYPES
-    assert action['url'].startswith('http')
-    assert action['time_since_last_action'] >= 0
-
-    if action['event_type'] == 'click':
-        assert action['xpath'] is not None
-```
-
-### Completeness Checks
-
-```sql
--- Check for data gaps
-SELECT
-    COUNT(*) as total_actions,
-    COUNT(DISTINCT event_type) as event_types,
-    MAX(time_since_last_action) as max_gap
-FROM actions;
-
--- Verify recording continuity
-SELECT * FROM actions
-WHERE time_since_last_action > 10
-ORDER BY id;
-```
+Each run-through generates an rrweb playback which can be found in the rrweb folder. Run the python file within which launches the rrweb recording.
 
 ## Next Steps
 
-<Card
-  title="Output Structure"
-  icon="folder-tree"
-  href="/output/structure"
->
+<Card title="Output Structure" icon="folder-tree" href="/output/structure">
   Detailed guide to output directory organization
 </Card>
 
-<Card
-  title="Database Schema"
-  icon="database"
-  href="/output/database"
->
+<Card title="Database Schema" icon="database" href="/output/database">
   Complete database schema reference
 </Card>
 
-<Card
-  title="Evaluation Suite"
-  icon="chart-bar"
-  href="/evaluation/overview"
->
+<Card title="Evaluation Suite" icon="chart-bar" href="/evaluation/overview">
   How collected data is analyzed
 </Card>

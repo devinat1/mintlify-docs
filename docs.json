@@ -57,14 +57,6 @@
               "output/video",
               "output/traces"
             ]
-          },
-          {
-            "group": "Evaluation Suite",
-            "pages": [
-              "evaluation/overview",
-              "evaluation/checkers",
-              "evaluation/metrics"
-            ]
           }
         ]
       },
@@ -148,15 +140,15 @@
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
   },
   "footer": {
     "socials": {
