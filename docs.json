@@ -117,7 +117,7 @@
       "anchors": [
         {
           "anchor": "GitHub",
-          "href": "https://github.com/devinat1/agent-collector",
+          "href": "https://github.com/LiteAgent/liteagent",
           "icon": "github"
         },
         {
@@ -129,15 +129,15 @@
     }
   },
   "logo": {
-    "light": "/logo/liteagent-text-large.svg",
-    "dark": "/logo/liteagent-text-large.svg",
+    "light": "/logo/liteagent-tes.svg",
+    "dark": "/logo/liteagent.svg",
     "height": 72
   },
   "navbar": {
     "links": [
       {
         "label": "GitHub",
-        "href": "https://github.com/devinat1/agent-collector"
+        "href": "https://github.com/LiteAgent/liteagent"
       }
     ],
     "primary": {
