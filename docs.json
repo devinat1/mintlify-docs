@@ -129,8 +129,8 @@
     }
   },
   "logo": {
-    "light": "/logo/liteagent-tes.svg",
-    "dark": "/logo/liteagent.svg",
+    "light": "liteagent.png",
+    "dark": "liteagent.png",
     "height": 72
   },
   "navbar": {
