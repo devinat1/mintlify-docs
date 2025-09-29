@@ -8,105 +8,99 @@ description: "Comprehensive guide to all supported web automation agents"
 LiteAgent supports 8 different web automation agents, each with unique capabilities and use cases.
 
 <CardGroup cols={2}>
-
-<Card title="BrowserUse" icon="chrome" href="/agents/browseruse">
-  Open-source AI-powered browser automation with GPT-4 and Claude support
-</Card>
-
-<Card title="DoBrowser" icon="puzzle-piece" href="/agents/dobrowser">
-  Chrome extension-based automation with real browser environment
-</Card>
-
-<Card title="MultiOn" icon="layers" href="/agents/multion">
-  Multi-modal AI agent with advanced vision capabilities
-</Card>
-
-<Card title="Agent E" icon="building" href="/agents/agente">
-  Enterprise-grade automation with Anthropic Claude
-</Card>
-
-<Card title="Skyvern" icon="eye" href="/agents/skyvern">
-  Computer vision-based automation without DOM dependency
-</Card>
-
-<Card title="WebArena" icon="flask" href="/agents/webarena">
-  Research-focused agent for academic evaluation
-</Card>
-
-<Card title="VisualWebArena" icon="image" href="/agents/visualwebarena">
-  Visual understanding agent for complex interfaces
-</Card>
-
-<Card title="Human" icon="user" href="/agents/human">
-  Manual baseline for comparison testing
-</Card>
-
+  <Card title="BrowserUse" icon="chrome" href="/agents/browseruse">
+    Open-source AI-powered browser automation with GPT-4 and Claude support
+  </Card>
+  <Card title="DoBrowser" icon="puzzle-piece" href="/agents/dobrowser">
+    Chrome extension-based automation with real browser environment
+  </Card>
+  <Card title="Agent E" icon="building" href="/agents/agente">
+    Enterprise-grade automation with Anthropic Claude
+  </Card>
+  <Card title="Skyvern" icon="eye" href="/agents/skyvern">
+    Computer vision-based automation without DOM dependency
+  </Card>
+  <Card title="WebArena" icon="flask" href="/agents/webarena">
+    Research-focused agent for academic evaluation
+  </Card>
+  <Card title="VisualWebArena" icon="image" href="/agents/visualwebarena">
+    Visual understanding agent for complex interfaces
+  </Card>
+  <Card title="Human" icon="user" href="/agents/human">
+    Manual baseline for comparison testing
+  </Card>
 </CardGroup>
 
 ## Quick Comparison
 
-| Feature | BrowserUse | DoBrowser | MultiOn | Agent E | Skyvern | WebArena | VisualWebArena |
-|---------|------------|-----------|---------|---------|---------|----------|----------------|
-| **API Required** | OpenAI/Anthropic | DoBrowser | MultiOn | Anthropic | Skyvern | OpenAI | OpenAI |
-| **Vision Support** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
-| **Setup Complexity** | Low | Medium | Low | Low | High | Medium | Medium |
-| **Dark Pattern Detection** | High | Medium | High | Very High | High | Low | Medium |
-| **Average Speed** | Fast | Medium | Fast | Medium | Slow | Fast | Medium |
-| **Cost** | $$ | $ | $$$ | $$$ | $$ | $$ | $$ |
+| Feature                    | BrowserUse       | DoBrowser | MultiOn | Agent E   | Skyvern | WebArena | VisualWebArena |
+| -------------------------- | ---------------- | --------- | ------- | --------- | ------- | -------- | -------------- |
+| **API Required**           | OpenAI/Anthropic | DoBrowser | MultiOn | Anthropic | Skyvern | OpenAI   | OpenAI         |
+| **Vision Support**         | ✅                | ✅         | ✅       | ✅         | ✅       | ❌        | ✅              |
+| **Setup Complexity**       | Low              | Medium    | Low     | Low       | High    | Medium   | Medium         |
+| **Dark Pattern Detection** | High             | Medium    | High    | Very High | High    | Low      | Medium         |
+| **Average Speed**          | Fast             | Medium    | Fast    | Medium    | Slow    | Fast     | Medium         |
+| **Cost**                   | $$               | $         | $$$     | $$$       | $$      | $$       | $$             |
 
 ## Getting Started
 
 <Steps>
+  <Step title="Choose Your Agent">
+    Select an agent based on your requirements:
 
-<Step title="Choose Your Agent">
-Select an agent based on your requirements:
-- **For general testing**: BrowserUse
-- **For enterprise**: Agent E
-- **For vision tasks**: Skyvern
-- **For research**: WebArena
-</Step>
+    - **For general testing**: BrowserUse
+    - **For enterprise**: Agent E
+    - **For vision tasks**: Skyvern
+    - **For research**: WebArena
+  </Step>
+  <Step title="Configure API Keys">
+    Add required API keys to `collector/.env`:
 
-<Step title="Configure API Keys">
-Add required API keys to `collector/.env`:
-```env
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-MULTION_API_KEY=...
-```
-</Step>
-
-<Step title="Run First Test">
-```bash
-# Using Docker
-docker compose up --build browseruse
-
-# Or locally
-./run.sh browseruse
-```
-</Step>
-
+    ```env
+    OPENAI_API_KEY=sk-...
+    ANTHROPIC_API_KEY=sk-ant-...
+    MULTION_API_KEY=...
+    ```
+  </Step>
+  <Step title="Run First Test">
+    ```bash
+    # Using Docker
+    docker compose up browseruse
+    
+    # Or locally
+    ./run.sh browseruse
+    ```
+  </Step>
 </Steps>
 
 ## Agent Categories
 
 ### AI-Powered Agents
+
 These agents use large language models for decision-making:
+
 - **BrowserUse**: GPT-4/Claude with browser control
 - **Agent E**: Claude-based with hierarchical planning
 - **MultiOn**: Proprietary multi-modal models
 
 ### Vision-Based Agents
+
 Agents that primarily rely on visual understanding:
+
 - **Skyvern**: Pure computer vision approach
 - **VisualWebArena**: Combined vision and text understanding
 
 ### Extension-Based Agents
+
 Agents that work through browser extensions:
+
 - **DoBrowser**: Chrome extension integration
 - **MultiOn**: Browser extension support
 
 ### Research Agents
+
 Academic and benchmark agents:
+
 - **WebArena**: Standard benchmark agent
 - **VisualWebArena**: Visual benchmark agent
 
@@ -115,6 +109,7 @@ Academic and benchmark agents:
 Based on testing across 100+ scenarios:
 
 ### Success Rates
+
 ```
 Agent E:          92% ████████████████████
 MultiOn:          88% █████████████████
@@ -126,6 +121,7 @@ WebArena:         68% █████████████
 ```
 
 ### Dark Pattern Detection
+
 ```
 Agent E:          95% ███████████████████
 Skyvern:          82% ████████████████
@@ -137,6 +133,7 @@ WebArena:         40% ████████
 ```
 
 ### Average Task Completion Time
+
 ```
 MultiOn:          40s ████
 BrowserUse:       45s █████
@@ -151,87 +148,94 @@ Skyvern:         120s ████████████
 ### When to Use Each Agent
 
 <Tabs>
+  <Tab title="Task Complexity">
+    **Simple Tasks** (click, navigate, read):
 
-<Tab title="Task Complexity">
+    - BrowserUse ⭐⭐⭐
+    - WebArena ⭐⭐⭐
+    - MultiOn ⭐⭐
 
-**Simple Tasks** (click, navigate, read):
-- BrowserUse ⭐⭐⭐
-- WebArena ⭐⭐⭐
-- MultiOn ⭐⭐
+    **Medium Tasks** (forms, multi-step):
 
-**Medium Tasks** (forms, multi-step):
-- MultiOn ⭐⭐⭐
-- BrowserUse ⭐⭐⭐
-- Agent E ⭐⭐
+    - MultiOn ⭐⭐⭐
+    - BrowserUse ⭐⭐⭐
+    - Agent E ⭐⭐
 
-**Complex Tasks** (reasoning, decisions):
-- Agent E ⭐⭐⭐
-- MultiOn ⭐⭐
-- BrowserUse ⭐⭐
+    **Complex Tasks** (reasoning, decisions):
 
-</Tab>
+    - Agent E ⭐⭐⭐
+    - MultiOn ⭐⭐
+    - BrowserUse ⭐⭐
+  </Tab>
+  <Tab title="Interface Type">
+    **Standard Web Pages**:
 
-<Tab title="Interface Type">
+    - All agents work well
 
-**Standard Web Pages**:
-- All agents work well
+    **Dynamic SPAs**:
 
-**Dynamic SPAs**:
-- BrowserUse ⭐⭐⭐
-- MultiOn ⭐⭐⭐
-- Agent E ⭐⭐
+    - BrowserUse ⭐⭐⭐
+    - MultiOn ⭐⭐⭐
+    - Agent E ⭐⭐
 
-**Canvas/WebGL**:
-- Skyvern ⭐⭐⭐
-- VisualWebArena ⭐⭐
+    **Canvas/WebGL**:
 
-**Non-standard UI**:
-- Skyvern ⭐⭐⭐
-- Agent E ⭐⭐
+    - Skyvern ⭐⭐⭐
+    - VisualWebArena ⭐⭐
 
-</Tab>
+    **Non-standard UI**:
 
-<Tab title="Requirements">
+    - Skyvern ⭐⭐⭐
+    - Agent E ⭐⭐
+  </Tab>
+  <Tab title="Requirements">
+    **Low Latency**:
 
-**Low Latency**:
-- BrowserUse
-- MultiOn
-- WebArena
+    - BrowserUse
+    - MultiOn
+    - WebArena
 
-**High Accuracy**:
-- Agent E
-- MultiOn
-- Skyvern
+    **High Accuracy**:
 
-**Cost-Effective**:
-- DoBrowser
-- WebArena
-- BrowserUse
+    - Agent E
+    - MultiOn
+    - Skyvern
 
-**No API Dependencies**:
-- Human baseline only
+    **Cost-Effective**:
 
-</Tab>
+    - DoBrowser
+    - WebArena
+    - BrowserUse
 
+    **No API Dependencies**:
+
+    - Human baseline only
+  </Tab>
 </Tabs>
 
 ## Common Setup Steps
 
 ### 1. Environment Variables
+
 All agents require environment configuration:
+
 ```bash
 cp collector/.env.example collector/.env
 # Edit with your API keys
 ```
 
 ### 2. Docker Setup
+
 Each agent has a dedicated Dockerfile:
+
 ```bash
 docker build -f Dockerfile.browseruse -t browseruse-agent .
 ```
 
 ### 3. Local Setup
+
 Install agent-specific dependencies:
+
 ```bash
 pip install -r requirements.txt
 playwright install  # For browser automation
@@ -240,31 +244,26 @@ playwright install  # For browser automation
 ## Troubleshooting Guide
 
 <AccordionGroup>
-
-<Accordion title="Agent won't start">
-- Check API keys are valid
-- Verify dependencies installed
-- Check Docker/Python version compatibility
-</Accordion>
-
-<Accordion title="Agent times out">
-- Increase timeout: `--timeout 300`
-- Check network connectivity
-- Verify target site is accessible
-</Accordion>
-
-<Accordion title="Poor success rates">
-- Verify prompt clarity
-- Check for site changes
-- Review agent logs for errors
-</Accordion>
-
-<Accordion title="API rate limits">
-- Add delays between tasks
-- Use multiple API keys
-- Consider batch processing
-</Accordion>
-
+  <Accordion title="Agent won't start">
+    - Check API keys are valid
+    - Verify dependencies installed
+    - Check Docker/Python version compatibility
+  </Accordion>
+  <Accordion title="Agent times out">
+    - Increase timeout: `--timeout 300`
+    - Check network connectivity
+    - Verify target site is accessible
+  </Accordion>
+  <Accordion title="Poor success rates">
+    - Verify prompt clarity
+    - Check for site changes
+    - Review agent logs for errors
+  </Accordion>
+  <Accordion title="API rate limits">
+    - Add delays between tasks
+    - Use multiple API keys
+    - Consider batch processing
+  </Accordion>
 </AccordionGroup>
 
 ## Advanced Configuration
